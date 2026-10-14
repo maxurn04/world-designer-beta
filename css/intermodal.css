@@ -1,0 +1,97 @@
+/* ==============================================================
+   ESTACIONES INTERMODALES - STYLES & VISUAL ENHANCEMENTS
+   ============================================================== */
+
+/* Marcador visual en el mapa para Estación Intermodal (más grande e imponente) */
+.station-white-dot.intermodal-station-dot {
+    width: 22px !important;
+    height: 22px !important;
+    margin-left: -11px !important;
+    margin-top: -11px !important;
+    background: radial-gradient(circle, #ffffff 25%, #00e5ff 60%, #ff2d55 100%) !important;
+    border: 3px solid #ffcc00 !important;
+    border-radius: 50% !important;
+    box-shadow: 0 0 16px rgba(255, 204, 0, 0.9), 0 0 30px rgba(0, 229, 255, 0.7), inset 0 0 6px #fff !important;
+    animation: intermodalGlow 2.2s infinite ease-in-out !important;
+    z-index: 2800 !important;
+}
+
+@keyframes intermodalGlow {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 12px rgba(255, 204, 0, 0.8), 0 0 22px rgba(0, 229, 255, 0.5);
+    }
+    50% {
+        transform: scale(1.18);
+        box-shadow: 0 0 22px rgba(255, 204, 0, 1), 0 0 40px rgba(0, 229, 255, 0.9), 0 0 50px rgba(255, 45, 85, 0.6);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 12px rgba(255, 204, 0, 0.8), 0 0 22px rgba(0, 229, 255, 0.5);
+    }
+}
+
+/* Badge flotante de estación Intermodal */
+.intermodal-badge-pill {
+    background: linear-gradient(135deg, #ffcc00 0%, #ff6b00 100%) !important;
+    color: #000000 !important;
+    font-weight: 900 !important;
+    border: 1.5px solid #ffffff !important;
+    padding: 2px 7px !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.5px !important;
+    text-shadow: none !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.7), 0 0 10px rgba(255,204,0,0.5) !important;
+}
+
+/* Tarjeta de conversión / mejora a Intermodal en el panel de estación */
+.st-upg-card.intermodal-upgrade-card {
+    background: linear-gradient(145deg, rgba(255, 204, 0, 0.12) 0%, rgba(20, 20, 32, 0.9) 100%);
+    border: 1.5px solid #ffcc00;
+    box-shadow: 0 4px 18px rgba(255, 204, 0, 0.25);
+    margin-top: 8px;
+    margin-bottom: 8px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.st-upg-card.intermodal-upgrade-card:hover {
+    transform: translateY(-2px);
+    border-color: #ffd700;
+    box-shadow: 0 6px 24px rgba(255, 204, 0, 0.45);
+    background: linear-gradient(145deg, rgba(255, 204, 0, 0.20) 0%, rgba(28, 28, 44, 0.95) 100%);
+}
+
+.st-upg-card.intermodal-upgrade-card.active-bought {
+    border-color: #00e5ff;
+    background: linear-gradient(145deg, rgba(0, 229, 255, 0.15) 0%, rgba(18, 26, 36, 0.95) 100%);
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.35);
+}
+
+.intermodal-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(90deg, rgba(255, 204, 0, 0.25), rgba(0, 229, 255, 0.25));
+    border: 1px solid rgba(255, 204, 0, 0.6);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #ffcc00;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+}
+
+.intermodal-maint-alert {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 105, 97, 0.12);
+    border: 1px solid rgba(255, 105, 97, 0.4);
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: #ff8b85;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    margin-top: 6px;
+}

@@ -1,0 +1,695 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Designer - Urban Transit Simulation (Santiago)</title>
+
+    <!-- Leaflet Map CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Santiago Street Network Data (Asynchronous / Non-blocking) -->
+    <script src="density_maps/santiago_streets.js" defer></script>
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/intermodal.css" />
+</head>
+<body>
+
+    <!-- START SCREEN -->
+    <div id="start-screen">
+        <h1 id="txt-title">WORLD DESIGNER</h1>
+        <p id="txt-subtitle" style="color:var(--accent); font-size:1.05rem; margin-bottom:8px;">Urban Transit Simulation</p>
+
+        <div class="upload-box" id="manual-upload">
+            <p id="txt-upload-title" style="margin: 0 0 6px 0; font-size: 1.05rem; color:var(--accent); font-weight:bold;">📁 Street Network File (.geojson or .json)</p>
+            <p id="txt-upload-desc" style="margin: 0 0 10px 0; font-size: 0.8rem; color:#aaa;">Select your streets file to generate vehicle traffic:</p>
+            <input type="file" id="file-input" accept=".json, .geojson, *">
+            <div id="upload-status" style="margin-top:10px; font-size:0.82rem; color:#aaa;">No file selected (optional)</div>
+        </div>
+
+        <div><button class="city-btn" id="btn-stgo" onclick="iniciarCiudad()">START SIMULATION</button></div>
+    </div>
+
+    <!-- TOP NAVBAR -->
+    <div id="navbar">
+        <div class="navbar-group">
+            <div class="nav-box box-regime">
+                <div class="regime-text" id="ui-regime-text" style="color:var(--accent);">OFF-PEAK</div>
+                <div class="city-sub" id="ui-weather-sub">SANTIAGO ☀️</div>
+            </div>
+            <div class="nav-box box-clock" title="View Events and Fleet Schedules" onclick="toggleCalendarModal()">
+                <div class="clock-time" id="ui-clock-time">08:00 AM <span id="ui-day-night-icon" class="nav-day-night-badge" title="Dynamic Day/Night Cycle" onclick="cycleDayNightManual()">☀️</span></div>
+                <div class="clock-day" id="ui-clock-day">Mon 1 📅</div>
+            </div>
+            <div class="nav-box box-money" onclick="toggleFinancialModal()">
+                <div class="money-value" id="ui-money">$0.100.000.000</div>
+                <div class="money-label" id="txt-funds-label">Public Funds</div>
+            </div>
+            <div class="nav-box box-flow">
+                <div class="flow-val zero" id="ui-flow">$0</div>
+            </div>
+
+            <button class="nav-btn-action" id="btn-nav-fares" onclick="toggleTariffModal()" title="Fares & Policies">🏷️ Fares</button>
+            <button class="nav-btn-action" id="btn-nav-schematic" onclick="openSchematicModal()" title="Schematic Network Diagram">🗺️ Schematic</button>
+            <button class="nav-btn-action" id="btn-nav-tech" onclick="toggleTechModal()" title="Transit Tech & Upgrades">⚡ Tech</button>
+            <button class="nav-btn-action" id="btn-nav-save" onclick="openSaveModal()" title="Save & Load Game">💾 Save</button>
+
+            <div class="build-dropdown-wrapper">
+                <button class="btn-dropdown-toggle" id="btn-nav-build">
+                    <span class="svg-slot">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                    </span>
+                    <span id="txt-btn-build">Build ▾</span>
+                </button>
+                <div class="build-cascade-menu" id="build-cascade-menu">
+                    <button class="cascade-item" onclick="openTransportPanel('metro')">
+                        <span class="svg-slot">🚇</span> <span id="txt-item-subway">Subway</span>
+                    </button>
+                    <button class="cascade-item" onclick="openTransportPanel('bus')">
+                        <span class="svg-slot">🚌</span> <span id="txt-item-bus">Bus</span>
+                    </button>
+                    <button class="cascade-item" disabled title="Coming soon">
+                        <span class="svg-slot">🚆</span> <span id="txt-item-train">Train (Soon)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="navbar-group">
+            <div class="nav-box box-happiness" title="Citizen Approval">
+                <div class="happiness-val" id="ui-happiness" style="color:var(--success-pastel);">100% 😊</div>
+            </div>
+            <button class="nav-btn-action" id="btn-sound-toggle" onclick="toggleMuteAudio()" title="Sound Mute / Unmute">🔊</button>
+            <button class="nav-btn-action" id="btn-navbar-settings" onclick="openSettingsModal()" title="Settings / Configuración">⚙️</button>
+            <button class="btn-menu-pause" id="btn-navbar-pause" onclick="openPauseMenu()">PAUSE</button>
+        </div>
+    </div>
+
+    <!-- FLOATING DENSITY MAP FILTER BUTTON (SQUARE ON RIGHT, BELOW NAVBAR) -->
+    <button id="btn-density-filter" onclick="toggleDensityFilter()" title="Filtro de Densidad Poblacional y Demanda de Metro">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+    </button>
+
+    <!-- FLOATING DENSITY & METRO DEMAND HUD CARD -->
+    <div id="density-legend-card">
+        <div class="density-legend-header">
+            <span>👥 ROAD HIERARCHY & METRO DEMAND</span>
+            <button class="density-legend-close" onclick="toggleDensityFilter()">✕</button>
+        </div>
+        <div class="density-legend-stats" id="density-legend-stats">
+            Loading road network & demand analysis...
+        </div>
+        <div class="density-legend-gradient-bar"></div>
+        <div class="density-legend-gradient-labels">
+            <span style="color:#a3a18e;">⚪ Neighborhoods</span>
+            <span style="color:#ffb300;">🟡 Minor Streets</span>
+            <span style="color:#ff9100;">🟠 Local Aves</span>
+            <span style="color:#d50000;">🔴 Major Avenues (350+)</span>
+        </div>
+    </div>
+
+    <!-- CALENDAR & FLEET SCHEDULE MODAL (3-TAB FOLDER LAYOUT) -->
+    <div class="center-modal folder-modal" id="calendar-modal">
+        <div class="folder-layout-wrapper">
+            <!-- MAIN FOLDER BODY -->
+            <div class="folder-main-card">
+                <!-- Top Close Button -->
+                <button class="folder-close-btn" onclick="toggleCalendarModal()" title="Close">✖</button>
+
+                <!-- TAB 1: CALENDAR (Image 2 style) -->
+                <div id="tab-folder-calendar" class="folder-tab-pane active">
+                    <!-- LEFT: EVENT DETAILS PANEL (Image 2 & 3) -->
+                    <div class="cal-event-panel" id="cal-event-panel">
+                        <div class="cal-panel-header">
+                            <div id="cal-panel-day-tag" class="cal-panel-day-tag">Day 1 • Monday</div>
+                            <div id="cal-panel-status-badge" class="cal-panel-badge today">Today</div>
+                        </div>
+                        <div id="cal-panel-body" class="cal-panel-body">
+                            <!-- Populated dynamically by selectCalendarDay() -->
+                        </div>
+                    </div>
+
+                    <!-- RIGHT: CALENDAR SHEET with [DEC] JANUARY [FEB] -->
+                    <div class="cal-sheet-container">
+                        <div class="cal-month-header">
+                            <button class="cal-month-nav-btn" id="cal-prev-month-btn" onclick="navCalendarMonth(-1)">‹ DEC</button>
+                            <span id="cal-month-name" class="cal-month-title">JANUARY</span>
+                            <button class="cal-month-nav-btn" id="cal-next-month-btn" onclick="navCalendarMonth(1)">FEB ›</button>
+                        </div>
+                        <div class="cal-weekdays-row" id="cal-weekdays-row">
+                            <!-- Weekday headers rendered dynamically -->
+                        </div>
+                        <div class="cal-days-grid" id="calendar-grid-container">
+                            <!-- 31 days grid rendered dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: METRO (Image 3 style) -->
+                <div id="tab-folder-metro" class="folder-tab-pane">
+                    <!-- TOP SUMMARY CARDS (Image 3) -->
+                    <div class="folder-top-cards-row">
+                        <!-- CARD 1: METRO FLEET (Trenes por Línea) -->
+                        <div class="folder-summary-card">
+                            <div class="folder-card-header">
+                                <span class="folder-card-icon">🚇</span>
+                                <span class="folder-card-title" id="lbl-metro-fleet-title">Subway Trains per Line</span>
+                                <span class="folder-card-badge" id="metro-total-trains-badge">0 Trains</span>
+                            </div>
+                            <div class="folder-card-content" id="metro-lines-fleet-list">
+                                <!-- Populated dynamically by updateMetroSummaryCards() -->
+                            </div>
+                        </div>
+
+                        <!-- CARD 2: SUPERAVIT / DEFICIT METRO -->
+                        <div class="folder-summary-card">
+                            <div class="folder-card-header">
+                                <span class="folder-card-icon">📊</span>
+                                <span class="folder-card-title" id="lbl-metro-fin-title">Subway Financial Balance</span>
+                                <span class="folder-card-badge" id="metro-balance-status-badge">Surplus</span>
+                            </div>
+                            <div class="folder-card-content" id="metro-finance-body">
+                                <!-- Populated dynamically by updateMetroSummaryCards() -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOTTOM SECTION: HORARIOS METRO (Image 3) -->
+                    <div class="folder-schedule-section">
+                        <div class="schedule-controls-bar">
+                            <div class="schedule-selector-wrap">
+                                <label id="lbl-metro-select-line" style="font-size:0.75rem; color:#888; font-weight:bold;">🚇 Line:</label>
+                                <select id="regime-metro-line-select" onchange="renderRegimeTableForMode('metro')"></select>
+                            </div>
+                            <div class="brush-selector-group">
+                                <span id="txt-brush-label-metro" style="font-size:0.7rem; color:#888;">Mode:</span>
+                                <button class="brush-btn brush-active active" id="brush-btn-metro-active" onclick="setRegimeBrush('active')">🟩 Operating</button>
+                                <button class="brush-btn brush-maint" id="brush-btn-metro-maint" onclick="setRegimeBrush('maintenance')">🟦 Maintenance</button>
+                                <button class="brush-btn brush-disabled" id="brush-btn-metro-disabled" onclick="setRegimeBrush('disabled')">⬛ Inactive</button>
+                                <button class="brush-btn brush-all" onclick="setAllRegimeForSelectedLine('metro', currentRegimeBrush)" title="Apply regime to all 24 hours">⚡ Apply to All</button>
+                            </div>
+                        </div>
+
+                        <div class="regime-timeline-scroll">
+                            <table class="regime-table" id="regime-table-metro-body"></table>
+                        </div>
+
+                        <div class="regime-mechanic-tip" id="txt-metro-mechanic-tip">
+                            💡 <b>Subway Mechanic:</b> Trains lose durability during active service. In <b>Maintenance</b> they enter depots/workshops for repairs. At shift end, <i>passengers alight at the next stop and trains return to depot</i>.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: BUS (Image 3 style) -->
+                <div id="tab-folder-bus" class="folder-tab-pane">
+                    <!-- TOP SUMMARY CARDS (Image 3) -->
+                    <div class="folder-top-cards-row">
+                        <!-- CARD 1: BUS FLEET (Buses por Recorrido) -->
+                        <div class="folder-summary-card">
+                            <div class="folder-card-header">
+                                <span class="folder-card-icon">🚌</span>
+                                <span class="folder-card-title" id="lbl-bus-fleet-title">Bus Fleet per Route</span>
+                                <span class="folder-card-badge" id="bus-total-buses-badge">0 Buses</span>
+                            </div>
+                            <div class="folder-card-content" id="bus-lines-fleet-list">
+                                <!-- Populated dynamically by updateBusSummaryCards() -->
+                            </div>
+                        </div>
+
+                        <!-- CARD 2: SUPERAVIT / DEFICIT BUS -->
+                        <div class="folder-summary-card">
+                            <div class="folder-card-header">
+                                <span class="folder-card-icon">📊</span>
+                                <span class="folder-card-title" id="lbl-bus-fin-title">Bus Financial Balance</span>
+                                <span class="folder-card-badge" id="bus-balance-status-badge">Surplus</span>
+                            </div>
+                            <div class="folder-card-content" id="bus-finance-body">
+                                <!-- Populated dynamically by updateBusSummaryCards() -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOTTOM SECTION: HORARIOS BUS (Image 3) -->
+                    <div class="folder-schedule-section">
+                        <div class="schedule-controls-bar">
+                            <div class="schedule-selector-wrap">
+                                <label id="lbl-bus-select-line" style="font-size:0.75rem; color:#888; font-weight:bold;">🚌 Route:</label>
+                                <select id="regime-bus-line-select" onchange="renderRegimeTableForMode('bus')"></select>
+                            </div>
+                            <div class="brush-selector-group">
+                                <span id="txt-brush-label-bus" style="font-size:0.7rem; color:#888;">Mode:</span>
+                                <button class="brush-btn brush-active active" id="brush-btn-bus-active" onclick="setRegimeBrush('active')">🟩 Operating</button>
+                                <button class="brush-btn brush-maint" id="brush-btn-bus-maint" onclick="setRegimeBrush('maintenance')">🟦 Maintenance</button>
+                                <button class="brush-btn brush-disabled" id="brush-btn-bus-disabled" onclick="setRegimeBrush('disabled')">⬛ Inactive</button>
+                                <button class="brush-btn brush-all" onclick="setAllRegimeForSelectedLine('bus', currentRegimeBrush)" title="Apply regime to all 24 hours">⚡ Apply to All</button>
+                            </div>
+                        </div>
+
+                        <div class="regime-timeline-scroll">
+                            <table class="regime-table" id="regime-table-bus-body"></table>
+                        </div>
+
+                        <div class="regime-mechanic-tip" id="txt-bus-mechanic-tip">
+                            💡 <b>Bus Mechanic:</b> Buses operating on streets suffer continuous wear. In <b>Maintenance</b> they enter terminals and depots for tuning. At shift end, they complete their route and retire to yard.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOLDER TABS ON THE RIGHT EDGE (Images 2 & 3 folder tabs) -->
+            <div class="folder-tabs-rail">
+                <button class="folder-tab-btn active" id="btn-folder-cal" onclick="switchFolderTab('cal')" title="Calendar and Events">
+                    <span class="folder-tab-icon">📅</span>
+                    <span class="folder-tab-text" id="lbl-folder-tab-cal">Calendar</span>
+                </button>
+                <button class="folder-tab-btn" id="btn-folder-metro" onclick="switchFolderTab('metro')" title="Subway Fleet and Schedules">
+                    <span class="folder-tab-icon">🚇</span>
+                    <span class="folder-tab-text" id="lbl-folder-tab-metro">Metro</span>
+                </button>
+                <button class="folder-tab-btn" id="btn-folder-bus" onclick="switchFolderTab('bus')" title="Bus Fleet and Schedules">
+                    <span class="folder-tab-icon">🚌</span>
+                    <span class="folder-tab-text" id="lbl-folder-tab-bus">Bus</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FARES MODAL -->
+    <div class="center-modal" id="tariff-modal">
+        <h3 id="txt-fares-title">FARE POLICIES</h3>
+        <div id="txt-fares-desc" style="font-size:0.8rem; color:#aaa; margin-bottom:12px;">Adjust fares to balance city finances, evasion rate, and citizen approval.</div>
+
+        <div class="tariff-row">
+            <span id="txt-fare-sub-peak">🚇 Subway Peak:</span>
+            <input type="number" class="tariff-input" id="inp-metro-peak" value="840" step="10" onchange="updateTariffValues()">
+        </div>
+        <div class="tariff-row">
+            <span id="txt-fare-sub-off">🚇 Subway Off-Peak / Low:</span>
+            <input type="number" class="tariff-input" id="inp-metro-off" value="750" step="10" onchange="updateTariffValues()">
+        </div>
+        <div class="tariff-row">
+            <span id="txt-fare-bus-flat">🚌 Bus (Flat Fare):</span>
+            <input type="number" class="tariff-input" id="inp-bus-flat" value="730" step="10" onchange="updateTariffValues()">
+        </div>
+        <div class="tariff-row" style="margin-top:8px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="checkbox" id="chk-bip" checked onchange="updateTariffValues()">
+                <b id="txt-fare-bip">Bip! Fare Integration</b>
+            </label>
+        </div>
+
+        <div style="background:#0c0c10; padding:10px; margin:10px 0; font-size:0.8rem; text-align:left; border-radius:3px; line-height:1.4;">
+            <div><span id="txt-evasion-label">Estimated evasion:</span> <b id="ui-evasion-rate" style="color:var(--danger-pastel);">6%</b></div>
+            <div><span id="txt-social-impact-label">Social impact:</span> <span id="ui-tariff-impact" style="color:var(--success-pastel);">Balanced</span></div>
+        </div>
+        <button class="hud-btn" id="btn-save-fares" onclick="toggleTariffModal()">Save & Close</button>
+    </div>
+
+    <!-- SCHEMATIC MAP MODAL -->
+    <div id="schematic-modal">
+        <div class="schematic-header">
+            <div>
+                <b id="txt-schematic-title" style="font-size:1.2rem; color:var(--accent);">TRANSIT SCHEMATIC MAP</b>
+                <div id="txt-schematic-sub" style="font-size:0.75rem; color:#888;">Orthogonal topological pocket map diagram</div>
+            </div>
+            <button class="action-btn" id="btn-close-schematic" style="width:auto; padding:8px 18px; margin:0;" onclick="closeSchematicModal()">✖ Back to Geographic Map</button>
+        </div>
+        <div class="schematic-body">
+            <svg id="schematic-svg"></svg>
+        </div>
+    </div>
+
+    <!-- PAUSE MODAL -->
+    <div class="center-modal" id="pause-modal">
+        <h3 id="txt-pause-title">GAME PAUSED</h3>
+        <button class="hud-btn" id="btn-pause-resume" onclick="resumeGame()">▶ Resume Game</button>
+        <button class="hud-btn" id="btn-pause-save" onclick="openSaveModal()">💾 Save & Load Game</button>
+        <button class="hud-btn" id="btn-pause-tech" onclick="toggleTechModal()">⚡ Tech & Upgrades</button>
+        <button class="hud-btn" id="btn-pause-settings" onclick="openSettingsModal()">⚙️ Settings</button>
+        <button class="hud-btn" id="btn-pause-restart" onclick="restartGame()">🔄 Restart Game</button>
+        <button class="hud-btn danger" id="btn-pause-exit" onclick="exitGame()">🚪 Exit to Title</button>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div class="center-modal" id="settings-modal" style="width: 390px; max-width: 92vw;">
+        <h3 id="txt-settings-title" style="margin-top:0; color:var(--accent);">SETTINGS</h3>
+
+        <div class="setting-row">
+            <span id="txt-setting-lang">Language / Idioma:</span>
+            <select class="setting-select" id="setting-language" onchange="changeLanguage(this.value)">
+                <option value="en">English (US)</option>
+                <option value="es">Español (Chile)</option>
+            </select>
+        </div>
+
+        
+        <div class="setting-row">
+            <span id="txt-setting-daynight">Dynamic Day/Night Cycle:</span>
+            <input type="checkbox" id="setting-daynight" checked onchange="toggleDayNightCycleSetting(this.checked)" style="transform:scale(1.2); cursor:pointer;">
+        </div>
+<div class="setting-row">
+            <span id="txt-setting-res">Map / Border Quality:</span>
+            <select class="setting-select" id="setting-resolution" onchange="changeResolution(this.value)">
+                <option id="opt-res-100" value="100">100% (High / Sharp)</option>
+                <option id="opt-res-75" value="75">75% (Medium / Balanced)</option>
+                <option id="opt-res-50" value="50">50% (Low / Fast Performance)</option>
+            </select>
+        </div>
+
+        <div class="setting-row" style="flex-direction: column; align-items: stretch; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span id="txt-setting-vehicles">Traffic Generation:</span>
+                <span id="ui-vehicle-val" style="font-weight: bold; color: var(--accent); font-size: 0.95rem;">1500</span>
+            </div>
+            <input type="range" id="setting-vehicles-slider" min="0" max="4" step="1" value="2" 
+                   oninput="changeVehicleDensityIndex(this.value)" style="width: 100%; accent-color: var(--accent); cursor: pointer; height: 6px; margin: 4px 0;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #888; margin-top: 2px; font-weight: bold; font-family: monospace;">
+                <span onclick="setVehicleSlider(0)" style="cursor:pointer;" title="250 cars base">250</span>
+                <span onclick="setVehicleSlider(1)" style="cursor:pointer;" title="750 cars base">750</span>
+                <span onclick="setVehicleSlider(2)" style="cursor:pointer;" title="1500 cars base">1500</span>
+                <span onclick="setVehicleSlider(3)" style="cursor:pointer;" title="2500 cars base">2500</span>
+                <span onclick="setVehicleSlider(4)" style="cursor:pointer;" title="4500 cars base">4500</span>
+            </div>
+            <div id="txt-vehicle-hint" style="font-size: 0.68rem; color: #aaa; margin-top: 6px; line-height: 1.25;">
+                Reduces visible vehicles for performance. Stations receive full passenger impact equal to max 4500.
+            </div>
+        </div>
+
+        <div class="setting-row">
+            <span id="txt-setting-sound">Sound Effects & Ambience:</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <input type="range" id="setting-sound-volume" min="0" max="100" value="40" oninput="changeMasterVolume(this.value)" style="width:110px; accent-color:var(--accent); cursor:pointer;">
+                <button class="st-btn-icon" id="btn-setting-mute" onclick="toggleMuteAudio()" style="font-size:0.9rem;" title="Mute / Unmute">🔊</button>
+            </div>
+        </div>
+
+        <div class="setting-row">
+            <span id="txt-setting-ui">UI Scale:</span>
+            <select class="setting-select" id="setting-ui-scale" onchange="changeUiScale(this.value)">
+                <option value="1.0">100% (Default)</option>
+                <option value="1.1">110% (Large)</option>
+                <option value="1.2">120% (Extra Large)</option>
+            </select>
+        </div>
+
+        <button class="hud-btn" style="margin-top:15px;" id="btn-settings-close" onclick="closeSettingsModal()">Apply & Close</button>
+    </div>
+
+    <!-- FINANCIAL MODAL -->
+    <div id="financial-modal" class="center-modal">
+        <h3 id="txt-fin-title">FINANCIAL SUMMARY</h3>
+        <div id="fin-content" style="font-size:0.85rem; line-height:1.5;">Loading...</div>
+        <button class="hud-btn" style="margin-top:15px;" id="btn-fin-close" onclick="toggleFinancialModal()">Close</button>
+    </div>
+
+    <!-- LINE SELECTOR MODAL -->
+    <div id="line-selector-modal" class="center-modal">
+        <h4 id="txt-line-sel-title">Select Line</h4>
+        <div id="line-selector-list"></div>
+        <button class="hud-btn" style="margin-top:10px;" id="btn-line-sel-cancel" onclick="cancelConnectModal()">Cancel</button>
+    </div>
+
+    <!-- STANDALONE STATION HUD PANEL -->
+    <div id="station-hud-panel">
+        <div id="station-standalone-content"></div>
+    </div>
+
+    <!-- TRANSPORT HUD PANEL -->
+    <div id="transport-hud-panel">
+        <div class="hud-header">
+            <div>
+                <div class="hud-title" id="transport-hud-title">Transit Network</div>
+                <div style="font-size:0.75rem; color:#888;" id="transport-hud-subtitle">Line and fleet management</div>
+            </div>
+            <button class="hud-close" onclick="closeTransportHUD()">✖</button>
+        </div>
+
+        <div id="thud-general-container">
+            <div class="hud-nav">
+                <button class="hud-tab-btn active" id="thud-tab-btn-lines" onclick="switchTransportTab('lines')">Lines</button>
+                <button class="hud-tab-btn" id="thud-tab-btn-create" onclick="switchTransportTab('create')">+ New</button>
+            </div>
+
+            <div class="hud-content active" id="thud-tab-lines">
+                <div style="max-height:140px; overflow-y:auto; margin-bottom:8px;">
+                    <table class="line-table" id="transport-hud-table"></table>
+                </div>
+            </div>
+
+            <div class="hud-content" id="thud-tab-create">
+                <div class="create-form" style="display:block;">
+                    <label id="lbl-create-name">Name:</label>
+                    <input type="text" id="thud-new-name" placeholder="E.g.: Line 1">
+                    <label id="lbl-create-color">Identifier Color:</label>
+                    <input type="color" id="thud-new-color" value="#ff3333">
+                    <div id="thud-bus-extra-fields" style="display:none;">
+                        <label id="lbl-create-freq">Departure Interval (sec):</label>
+                        <input type="number" id="thud-bus-freq" value="6" min="2" max="30">
+                    </div>
+                    <button class="action-btn" id="btn-create-submit" style="background:var(--accent); color:black;" onclick="saveNewLineFromHUD()">Create Line</button>
+                </div>
+            </div>
+
+            <button class="action-btn build" id="thud-btn-build-general" onclick="toggleBuildModeFromHUD()" style="margin-top:6px;">✚ Build Station</button>
+        </div>
+
+        <div id="thud-line-detail-view">
+            <div class="detail-line-header">
+                <div class="detail-line-title" id="ldetail-title" style="color:var(--accent);">LINE 1</div>
+                <button class="detail-back-btn" onclick="backToLinesList()" title="Back to lines list">←</button>
+            </div>
+
+            <div class="detail-grid-top">
+                <div class="detail-card-box">
+                    <div class="detail-box-label" id="ldetail-type-label">SUBWAY</div>
+                    <div class="detail-big-number" id="ldetail-fleet-count">0 / 0</div>
+                    <div class="fleet-quick-controls">
+                        <button class="fleet-quick-btn" onclick="modifyActiveLineFleet(-1)">-</button>
+                        <button class="fleet-quick-btn" onclick="modifyActiveLineFleet(1)">+</button>
+                    </div>
+                    <div class="detail-box-sub" id="ldetail-unlock-text">Unlock next convoy: 4 st.</div>
+                </div>
+
+                <div class="detail-card-box">
+                    <div class="detail-box-label" id="ldetail-daily-title">DAILY PROFIT</div>
+                    <div class="detail-big-number" id="ldetail-daily-val" style="font-size:1.1rem; color:var(--success-pastel);">$0</div>
+                    <div class="detail-box-sub" id="ldetail-daily-sub">Yesterday: $0</div>
+                </div>
+            </div>
+
+            <button class="btn-line-upgrade-wide" id="btn-line-upgrade-wide" onclick="toggleSideUpgradesPanel()">
+                <span id="txt-btn-upgrades">⚡ UPGRADES</span>
+                <span id="upgrade-arrow-icon">▼</span>
+            </button>
+
+            <button class="btn-express-toggle" id="btn-line-express" onclick="toggleActiveLineExpress()">
+                <span id="lbl-express-status">⚪ Common Service: Inactive</span>
+                <span style="font-size:0.7rem; color:#aaa;" id="txt-peak-tag">Rush Hour</span>
+            </button>
+
+            <div class="detail-stations-container">
+                <div class="detail-stations-title">
+                    <span id="txt-total-st-label">TOTAL STATIONS:</span>
+                    <span id="ldetail-st-count" style="color:var(--accent);">0</span>
+                </div>
+                <div class="schematic-strip-wrapper">
+                    <div class="schematic-strip-line" id="schematic-nodes-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="thud-side-panel">
+            <div id="side-panel-content"></div>
+        </div>
+    </div>
+
+    <div id="status-toast-bar">
+        <span id="status-toast-text">Active notification</span>
+        <button id="status-toast-action" onclick="dismissStatusToast()">Cancel</button>
+    </div>
+
+    
+    <!-- TECH TREE & UPGRADES MODAL (OPTION 5) -->
+    <div id="tech-modal" class="center-modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3 id="txt-tech-modal-title" style="margin:0; font-size:1.15rem; display:flex; align-items:center; gap:8px;">
+                <span>⚡</span> <span id="txt-tech-title">TRANSIT R&D & TECH TREE</span>
+            </h3>
+            <button class="pip-close-btn" onclick="toggleTechModal()">✕</button>
+        </div>
+        <p id="txt-tech-desc" style="font-size:0.8rem; color:#8b949e; margin:0 0 16px 0;">
+            Invest city treasury funds into technological breakthroughs to boost transit efficiency, safety, and rider satisfaction.
+        </p>
+        <div class="tech-grid" id="tech-grid-container">
+            <!-- Dynamically populated -->
+        </div>
+        <button class="hud-btn" style="margin-top:12px;" id="btn-tech-close" onclick="toggleTechModal()">Close / Cerrar</button>
+    </div>
+
+    <!-- SAVE & LOAD GAME MODAL (OPTION 6) -->
+    <div id="save-modal" class="center-modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 id="txt-save-modal-title" style="margin:0; font-size:1.15rem; display:flex; align-items:center; gap:8px;">
+                <span>💾</span> <span id="txt-save-title">SAVE & LOAD GAME</span>
+            </h3>
+            <button class="pip-close-btn" onclick="closeSaveModal()">✕</button>
+        </div>
+        
+        <div class="save-section">
+            <h4><span id="txt-save-sec1-icon">💾</span> <span id="txt-save-sec1-title">Quick Save (Browser Storage)</span></h4>
+            <p id="txt-save-sec1-desc">Save your entire city, lines, fleet schedules, and unlocked technologies directly into your browser.</p>
+            <div class="save-btn-row">
+                <button class="save-action-btn green" onclick="saveGameToLocalStorage()">
+                    <span>💾</span> <span id="txt-btn-quicksave">Save Game Now</span>
+                </button>
+                <button class="save-action-btn" id="btn-load-quicksave" onclick="loadGameFromLocalStorage()">
+                    <span>📂</span> <span id="txt-btn-quickload">Load Saved Game</span>
+                </button>
+            </div>
+            <div class="save-info-badge" id="save-last-timestamp">No quick-save recorded yet.</div>
+        </div>
+
+        <div class="save-section">
+            <h4><span id="txt-save-sec2-icon">📁</span> <span id="txt-save-sec2-title">File Export & Import (JSON)</span></h4>
+            <p id="txt-save-sec2-desc">Download a backup file to keep your progress safe, or transfer your transit network between devices.</p>
+            <div class="save-btn-row">
+                <button class="save-action-btn" onclick="exportSaveFile()">
+                    <span>⬇️</span> <span id="txt-btn-export">Download Save (.json)</span>
+                </button>
+                <label class="save-action-btn" style="cursor:pointer;">
+                    <span>⬆️</span> <span id="txt-btn-import">Load File (.json)</span>
+                    <input type="file" id="save-file-input" accept=".json" style="display:none;" onchange="importSaveFile(this)">
+                </label>
+            </div>
+        </div>
+
+        <button class="hud-btn" style="margin-top:10px;" id="btn-save-close" onclick="closeSaveModal()">Close / Cerrar</button>
+    </div>
+
+    <!-- VEHICLE TRACER LEADER LINE OVERLAY -->
+    <svg id="vehicle-leader-line-svg" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1040; display: none;">
+        <defs>
+            <filter id="leader-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+        </defs>
+        <path id="leader-line-glow" d="" stroke="#00d2ff" stroke-width="4" stroke-opacity="0.35" fill="none" filter="url(#leader-glow)" />
+        <path id="leader-line-core" d="" stroke="#00d2ff" stroke-width="2" stroke-dasharray="6,4" fill="none" />
+        <circle id="leader-line-target-dot" cx="0" cy="0" r="4.5" fill="#ffffff" stroke="#00d2ff" stroke-width="2" />
+        <circle id="leader-line-target-ring" cx="0" cy="0" r="10" fill="none" stroke="#00d2ff" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.8" />
+        <circle id="leader-line-anchor-dot" cx="0" cy="0" r="3.5" fill="#ffffff" stroke="#00d2ff" stroke-width="1.5" />
+    </svg>
+
+    <!-- VEHICLE TRACKER & TELEMETRY STACK -->
+    <div id="vehicle-tracker-container">
+        <!-- UPPER CARD: WAGON / SEAT INSPECTOR (LA BURBUJA CALCADA) -->
+        <div id="vehicle-tracker-wagons" class="tracker-card">
+            <div class="pip-header">
+                <div class="pip-header-title">
+                    <span class="pip-line-badge" id="wagons-line-badge">🚇 L1</span>
+                    <span class="pip-veh-id" id="wagons-title" style="max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Convoy</span>
+                </div>
+                <button class="pip-close-btn" onclick="closeVehicleTracker()" title="Close">✕</button>
+            </div>
+            <div style="padding: 10px 14px;">
+                <div id="wagons-subtitle" style="font-size:0.75rem; color:#8b949e; margin-bottom:8px; text-align:center;">
+                    Speed: ~0 km/h | Health: 100% | Onboard: 0/0 pax
+                </div>
+                <div class="inspector-train-display" id="wagons-display-container">
+                    <!-- Dynamic wagons or bus seats -->
+                </div>
+                <div class="inspector-legend" id="wagons-legend-container">
+                    <div class="legend-item"><div class="legend-dot" id="legend-dot-occupied" style="background:var(--accent);"></div> <span id="txt-legend-occupied">Occupied</span></div>
+                    <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.08); border:1px dashed #666;"></div> <span id="txt-legend-available">Available</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOWER CARD: LIVE TELEMETRY HUD -->
+        <div id="vehicle-tracker-pip" class="tracker-card">
+            <div class="pip-header">
+                <div class="pip-header-title">
+                    <span class="pip-line-badge" id="pip-line-tag">🚇 L1</span>
+                    <span class="pip-veh-id" id="pip-vehicle-id">Convoy #01</span>
+                </div>
+                <button class="pip-close-btn" onclick="closeVehicleTracker()" title="Close Telemetry">✕</button>
+            </div>
+            <div class="pip-body">
+                <div>
+                    <div class="pip-telemetry-row">
+                        <span class="pip-label" id="lbl-pip-speed">Velocity</span>
+                        <span class="pip-value"><span id="pip-speed-val">0</span> <small style="font-size:0.75rem; color:#8b949e;">km/h</small></span>
+                    </div>
+                    <div class="pip-meter-bg">
+                        <div class="pip-meter-fill" id="pip-speed-bar" style="width:0%; background:#00d2ff;"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="pip-telemetry-row">
+                        <span class="pip-label" id="lbl-pip-pax">Passengers</span>
+                        <span class="pip-value" id="pip-pax-val" style="font-size:0.88rem;">0 / 0 PAX</span>
+                    </div>
+                    <div class="pip-meter-bg">
+                        <div class="pip-meter-fill" id="pip-pax-bar" style="width:0%; background:var(--success-pastel);"></div>
+                    </div>
+                </div>
+
+                <div class="pip-telemetry-row">
+                    <span class="pip-label" id="lbl-pip-status">Status</span>
+                    <span id="pip-status-val" class="pip-badge moving">🟢 In Transit</span>
+                </div>
+
+                <div style="font-size:0.8rem; color:#c9d1d9; border-left:2px solid var(--accent); padding-left:8px;" id="pip-next-stop-name">
+                    ➡️ Next: ---
+                </div>
+
+                <div>
+                    <div class="pip-telemetry-row">
+                        <span class="pip-label" id="lbl-pip-health">Condition</span>
+                        <span class="pip-value" id="pip-health-val" style="font-size:0.82rem; color:#58a6ff;">100%</span>
+                    </div>
+                    <div class="pip-meter-bg">
+                        <div class="pip-meter-fill" id="pip-health-bar" style="width:100%; background:#58a6ff;"></div>
+                    </div>
+                </div>
+
+                <div class="pip-controls">
+                    <button class="pip-control-btn" id="pip-btn-follow" onclick="togglePiPFollow()">🎥 Follow</button>
+                    <button class="pip-control-btn" onclick="pipCenterOnVehicle()">🔍 Center</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAP CONTAINER -->
+    <div id="map-container"></div>
+    <canvas id="weather-canvas"></canvas>
+    <div id="weather-ambient-overlay"></div>
+    <div id="day-night-overlay"></div>
+
+
+    <script src="density_maps/santiago_streets.js" defer></script>
+    <!-- Modular Game Systems -->
+    <script src="js/config.js"></script>
+    <script src="js/communes_data.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/weather.js"></script>
+    <script src="js/economy.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/transit_lines.js"></script>
+    <script src="js/stations.js"></script>
+    <script src="js/simulation.js"></script>
+    <script src="js/pip.js"></script>
+    <script src="js/density.js"></script>
+    <script src="js/save_load.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

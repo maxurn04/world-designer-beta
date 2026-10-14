@@ -1,0 +1,7 @@
+# Archivos de datos pesados
+*.geojson
+export (1).geojson
+
+# Sistema operativo
+Thumbs.db
+.DS_Store

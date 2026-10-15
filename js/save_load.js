@@ -266,7 +266,11 @@ async function restoreGameState(data) {
                     revenueThisMonth: stData.revenueThisMonth || 0,
                     expressType: stData.expressType || 'common',
                     lines: [...(stData.lines || [])],
-                    densityScore: stData.densityScore || ((typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(targetLatLng).density : Math.max(5, 100 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 150)))
+                    densityScore: (stData.densityScore && stData.densityScore <= 10.0)
+                        ? Number(stData.densityScore.toFixed(1))
+                        : ((typeof getPointDensityAndAttraction === 'function')
+                            ? getPointDensityAndAttraction(targetLatLng).density
+                            : Math.max(1.0, Number((7.0 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 2500)).toFixed(1))))
                 };
 
                 marker.on('click', (ev) => {

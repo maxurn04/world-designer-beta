@@ -138,35 +138,43 @@ function findNearestMajorAvenue(latlng) {
 }
 
 function getPointDensityAndAttraction(latlng) {
-    if (!latlng) return { density: 100, attraction: 50, tierColor: '#00e5ff', tierBadge: '', streetName: 'Zona Urbana', streetDesc: '', densityCategory: '', attractionCategory: '', distance: 9999 };
+    if (!latlng) return { density: 5.0, attraction: 5.0, tierColor: '#00e5ff', tierBadge: '', streetName: 'Zona Urbana', streetDesc: '', densityCategory: '', attractionCategory: '', distance: 9999 };
     let nearestAve = (typeof findNearestMajorAvenue === 'function') ? findNearestMajorAvenue(latlng) : { avenue: null, distance: 9999 };
     let streetName = '';
     let streetDesc = '';
     let tierBadge = '';
     let tierColor = '#d50000';
-    let densityVal = 350;
+    let densityVal = 8.5;
     let densityCategory = '';
-    let attractionVal = 185;
+    let attractionVal = 8.0;
     let attractionCategory = '';
 
-    let dCenter = latlng.distanceTo(L.latLng(-33.445, -70.655));    // Santiago Centro / Est. Central
-    let dLaPintana = latlng.distanceTo(L.latLng(-33.585, -70.635));  // La Pintana / Santa Rosa
-    let dSanMiguel = latlng.distanceTo(L.latLng(-33.495, -70.655));  // San Miguel / Gran Avenida
-    let dQuilicura = latlng.distanceTo(L.latLng(-33.360, -70.730));  // Quilicura centro
-    let dPuenteAlto = latlng.distanceTo(L.latLng(-33.605, -70.575)); // Puente Alto centro
-    let dCerroNavia = latlng.distanceTo(L.latLng(-33.425, -70.730)); // Cerro Navia
+    // Distance to key urban centers and high-rise commercial corridors
+    let dCenter = latlng.distanceTo(L.latLng(-33.445, -70.655));      // Santiago Centro / Est. Central
+    let dCostanera = latlng.distanceTo(L.latLng(-33.4172, -70.6067)); // Costanera Center / Providencia
+    let dLaPintana = latlng.distanceTo(L.latLng(-33.585, -70.635));    // La Pintana / Santa Rosa
+    let dSanMiguel = latlng.distanceTo(L.latLng(-33.495, -70.655));    // San Miguel / Gran Avenida
+    let dQuilicura = latlng.distanceTo(L.latLng(-33.360, -70.730));    // Quilicura centro
+    let dPuenteAlto = latlng.distanceTo(L.latLng(-33.605, -70.575));   // Puente Alto centro
+    let dCerroNavia = latlng.distanceTo(L.latLng(-33.425, -70.730));   // Cerro Navia
 
-    let baseDensity = 50;
-    if (dCenter < 2200 || dLaPintana < 1800 || dSanMiguel < 1400 || dQuilicura < 1200 || dPuenteAlto < 1300 || dCerroNavia < 1200) {
-        baseDensity = 110; // Red cluster: 351 - Max. hab/ha
-    } else if (dCenter < 4800 || dLaPintana < 3800 || dSanMiguel < 3200 || dQuilicura < 3000 || dPuenteAlto < 3000 || dCerroNavia < 3000) {
-        baseDensity = 85;  // Dark orange cluster: 151 - 350 hab/ha
-    } else if ((latlng.lng > -70.56 && latlng.lat > -33.43) || (latlng.lat > -33.36 && latlng.lng > -70.55)) {
-        baseDensity = 38;  // Yellow cluster: Vitacura / Las Condes / Lo Barnechea: 1 - 75 hab/ha
+    // Dense building bonus: concentration of high-rise commercial & residential towers
+    let buildingDensityBonus = 0;
+    if (dCostanera < 1400) {
+        // Providencia / Costanera high-rise corporate & commercial cluster
+        buildingDensityBonus = 1.2 + (1 - dCostanera / 1400) * 0.6; // +1.2 to +1.8
+    } else if (dCenter < 2200) {
+        // Santiago Centro civic & high-density residential towers
+        buildingDensityBonus = 1.0 + (1 - dCenter / 2200) * 0.5; // +1.0 to +1.5
+    } else if (dSanMiguel < 1500) {
+        // San Miguel high-rise corridor (Gran Avenida / El Llano)
+        buildingDensityBonus = 0.6 + (1 - dSanMiguel / 1500) * 0.4; // +0.6 to +1.0
+    } else if (dPuenteAlto < 1500 || dQuilicura < 1400 || dLaPintana < 1800) {
+        buildingDensityBonus = 0.4 + Math.random() * 0.3;
     } else {
-        baseDensity = 68;  // Orange cluster: Providencia, Ñuñoa, Maipú: 76 - 150 hab/ha
+        buildingDensityBonus = 0.1;
     }
-    let baseAttr = Math.round(baseDensity * 1.45);
+
     let communeRaw = (typeof getCommuneAtLatLng === 'function') ? (getCommuneAtLatLng(latlng) || 'santiago') : 'santiago';
     let communeName = communeRaw.charAt(0).toUpperCase() + communeRaw.slice(1);
 
@@ -174,58 +182,63 @@ function getPointDensityAndAttraction(latlng) {
         let ave = nearestAve.avenue;
         streetName = ave.name;
         streetDesc = ave.desc || '';
+        let distFactor = Math.max(0, 1 - nearestAve.distance / 240);
         if (ave.tier === 'red') {
             tierColor = '#d50000';
-            tierBadge = '🔴 Tier 1: Major Avenue (350+ / Multi-lane)';
-            densityVal = Math.round(ave.density * 1.85);
-            densityCategory = 'Max Transit Density (350+ hab/ha)';
-            attractionVal = Math.round(ave.density);
-            attractionCategory = 'Critical Transit Demand 🔥';
+            tierBadge = '🔴 Tier 1: Gran Avenida / Corredor Masivo';
+            densityVal = 8.5 + distFactor * 1.5;
+            densityCategory = 'Máxima Demanda Vial (8.5 - 10.0)';
+            attractionVal = 8.0 + distFactor * 1.4 + buildingDensityBonus * 0.4;
+            attractionCategory = 'Atracción Crítica 🔥 (8.5 - 10.0)';
         } else if (ave.tier === 'yellow') {
             tierColor = '#ff9100';
-            tierBadge = '🟠 Tier 2: Local Avenue (1 lane/side)';
-            densityVal = Math.round(ave.density * 1.35);
-            densityCategory = 'High Transit Density';
-            attractionVal = Math.round(ave.density * 0.85);
-            attractionCategory = 'High Demand ⚡';
+            tierBadge = '🟠 Tier 2: Avenida Local / Eje Comercial';
+            densityVal = 6.0 + distFactor * 2.2;
+            densityCategory = 'Alta Demanda Vial (6.0 - 8.4)';
+            attractionVal = 5.8 + distFactor * 1.8 + buildingDensityBonus * 0.4;
+            attractionCategory = 'Alta Demanda ⚡ (6.0 - 8.4)';
         } else {
             tierColor = '#ffb300';
-            tierBadge = '🟡 Tier 3: Secondary / Connecting Street';
-            densityVal = Math.round(ave.density * 0.95);
-            densityCategory = 'Moderate Density';
-            attractionVal = Math.round(ave.density * 0.70);
-            attractionCategory = 'Moderate Demand 🟡';
+            tierBadge = '🟡 Tier 3: Calle Intermedia / Conectora';
+            densityVal = 3.5 + distFactor * 2.2;
+            densityCategory = 'Demanda Moderada (3.5 - 5.9)';
+            attractionVal = 3.5 + distFactor * 1.8 + buildingDensityBonus * 0.4;
+            attractionCategory = 'Demanda Moderada 🟡 (3.5 - 5.9)';
         }
     } else {
-        if (baseAttr >= 130) {
+        // Areas without immediate avenue frontage
+        if (dCenter < 3500 || dCostanera < 2500) {
             tierColor = '#ff9100';
-            tierBadge = '🟠 Tier 2: Urban Arterial / Local Ave';
-            streetName = `Corredor Urbano (${communeName})`;
-            streetDesc = 'Eje conector local de 1 vía por sentido con activo flujo de transporte.';
-            densityVal = Math.round(baseAttr * 1.55);
-            densityCategory = 'High Density (180-280 hab/ha)';
-            attractionVal = baseAttr;
-            attractionCategory = 'High Demand ⚡';
-        } else if (baseAttr >= 75) {
+            tierBadge = '🟠 Tier 2: Corredor Urbano / Local';
+            streetName = `Eje Urbano Central (${communeName})`;
+            streetDesc = 'Sector céntrico con alta concentración de servicios y edificación en altura.';
+            densityVal = 6.2 + buildingDensityBonus * 0.5;
+            densityCategory = 'Alta Densidad Urbana (6.0 - 8.4)';
+            attractionVal = 6.0 + buildingDensityBonus * 0.7;
+            attractionCategory = 'Alta Demanda ⚡ (6.0 - 8.4)';
+        } else if (buildingDensityBonus >= 0.5) {
             tierColor = '#ffb300';
-            tierBadge = '🟡 Tier 3: Secondary Street';
+            tierBadge = '🟡 Tier 3: Calle Conectora';
             streetName = `Calle Conectora (${communeName})`;
             streetDesc = 'Vía intermedia conectora entre barrios residenciales y ejes comerciales.';
-            densityVal = Math.round(baseAttr * 1.30);
-            densityCategory = 'Moderate Density (90-170 hab/ha)';
-            attractionVal = baseAttr;
-            attractionCategory = 'Moderate Demand 🟡';
+            densityVal = 3.8 + buildingDensityBonus * 0.5;
+            densityCategory = 'Densidad Media (3.5 - 5.9)';
+            attractionVal = 3.6 + buildingDensityBonus * 0.6;
+            attractionCategory = 'Demanda Moderada 🟡 (3.5 - 5.9)';
         } else {
             tierColor = '#a3a18e';
-            tierBadge = '⚪ Tier 4: Residential Neighborhood';
+            tierBadge = '⚪ Tier 4: Barrio Residencial';
             streetName = `Barrio Residencial (${communeName})`;
             streetDesc = 'Pasajes interiores y calles locales residenciales de tráfico calmo.';
-            densityVal = Math.round(baseAttr * 1.10);
-            densityCategory = 'Low Density (30-85 hab/ha)';
-            attractionVal = baseAttr;
-            attractionCategory = 'Local Demand ⚪';
+            densityVal = Math.max(1.0, 1.4 + (dCenter > 5000 ? 0.3 : 1.1));
+            densityCategory = 'Baja Densidad (1.0 - 3.4)';
+            attractionVal = Math.max(1.0, 1.2 + (dCenter > 5000 ? 0.4 : 1.2));
+            attractionCategory = 'Demanda Local ⚪ (1.0 - 3.4)';
         }
     }
+
+    densityVal = Number(Math.min(10.0, Math.max(1.0, densityVal)).toFixed(1));
+    attractionVal = Number(Math.min(10.0, Math.max(1.0, attractionVal)).toFixed(1));
 
     return {
         density: densityVal,
@@ -311,7 +324,7 @@ function inspectDensityPoint(latlng) {
         `;
     }
 
-    let attrPct = Math.min(100, Math.max(5, Math.round((attractionVal / 200) * 100)));
+    let attrPct = Math.min(100, Math.max(10, Math.round((attractionVal / 10) * 100)));
 
     let popupContent = `
         <div style="font-family:'Segoe UI',Roboto,sans-serif; color:#fff;">
@@ -319,7 +332,7 @@ function inspectDensityPoint(latlng) {
                 <span style="display:inline-block; padding:2px 7px; border-radius:4px; font-size:0.68rem; font-weight:800; background:${tierColor}25; color:${tierColor}; border:1px solid ${tierColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                     ${tierBadge}
                 </span>
-                <span style="font-size:0.72rem; color:#aaa; font-weight:600; white-space:nowrap;">📍� ${communeName}</span>
+                <span style="font-size:0.72rem; color:#aaa; font-weight:600; white-space:nowrap;">📍 ${communeName}</span>
             </div>
             <div style="font-size:0.95rem; font-weight:800; color:#fff; margin-bottom:3px; line-height:1.2;">
                 ${streetName}
@@ -331,14 +344,14 @@ function inspectDensityPoint(latlng) {
                 <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px; text-align:center;">
                     <div style="font-size:0.65rem; color:#888; text-transform:uppercase; font-weight:700;">DENSIDAD</div>
                     <div style="font-size:1.05rem; font-weight:800; color:${tierColor}; margin:1px 0;">
-                        ${densityVal} <span style="font-size:0.65rem; color:#aaa;">hab/ha</span>
+                        ${densityVal} <span style="font-size:0.65rem; color:#aaa;">/ 10</span>
                     </div>
                     <div style="font-size:0.68rem; color:#bbb;">${densityCategory}</div>
                 </div>
                 <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px; text-align:center;">
                     <div style="font-size:0.65rem; color:#888; text-transform:uppercase; font-weight:700;">DEMANDA / ATTR</div>
                     <div style="font-size:1.05rem; font-weight:800; color:var(--accent); margin:1px 0;">
-                        ${attractionVal} <span style="font-size:0.65rem; color:#aaa;">/ 200</span>
+                        ${attractionVal} <span style="font-size:0.65rem; color:#aaa;">/ 10</span>
                     </div>
                     <div style="font-size:0.68rem; color:#bbb;">${attractionCategory}</div>
                 </div>
@@ -491,9 +504,12 @@ function renderDensityMapFilter() {
 
             if (santiagoStreetOverlay && densityMapLayerGroup.hasLayer(santiagoStreetOverlay)) {
                 santiagoStreetOverlay.setUrl(rasterUrl);
+                if (typeof santiagoStreetOverlay.setOpacity === 'function') {
+                    santiagoStreetOverlay.setOpacity(0.35);
+                }
             } else {
                 santiagoStreetOverlay = L.imageOverlay(rasterUrl, SANTIAGO_DENSITY_BOUNDS, {
-                    opacity: 0.95,
+                    opacity: 0.35,
                     interactive: false,
                     pane: 'densityStreetPane',
                     zIndex: 340,
@@ -575,10 +591,10 @@ function renderDensityMapFilter() {
                 <span style="font-size:0.65rem; color:#00e5ff; background:rgba(0,229,255,0.15); border:1px solid rgba(0,229,255,0.4); padding:1px 6px; border-radius:10px; font-weight:800;">⚡ GPU 60 FPS</span>
             </div>
             <b>${lvlCounts.total}</b> ${currentLang === 'es' ? 'Vías renderizadas en zona activa' : 'Streets rendered in active zone'}<br>
-            <span style="color:#d50000; font-weight:800;">🔴 ${lvlCounts.r}</span> ${currentLang === 'es' ? 'Grandes Avenidas (350+ / 2+ pistas)' : 'Major Avenues (350+ / 2+ lanes)'}<br>
-            <span style="color:#ff9100; font-weight:800;">🟠 ${lvlCounts.o}</span> ${currentLang === 'es' ? 'Avenidas Locales (1 pista/sentido)' : 'Local Avenues (1 lane/side)'}<br>
-            <span style="color:#ffb300; font-weight:800;">🟡 ${lvlCounts.y}</span> ${currentLang === 'es' ? 'Calles Menores / Conectoras' : 'Secondary / Connecting streets'}<br>
-            <span style="color:#a3a18e; font-weight:800;">⚪ ${lvlCounts.g}</span> ${currentLang === 'es' ? 'Barrios Residenciales (Grisáceo)' : 'Neighborhoods (Yellow-gray)'}<br>
+            <span style="color:#d50000; font-weight:800;">🔴 ${lvlCounts.r}</span> ${currentLang === 'es' ? 'Grandes Avenidas (8.5 - 10.0 / 2+ pistas)' : 'Major Avenues (8.5 - 10.0 / 2+ lanes)'}<br>
+            <span style="color:#ff9100; font-weight:800;">🟠 ${lvlCounts.o}</span> ${currentLang === 'es' ? 'Avenidas Locales (6.0 - 8.4)' : 'Local Avenues (6.0 - 8.4)'}<br>
+            <span style="color:#ffb300; font-weight:800;">🟡 ${lvlCounts.y}</span> ${currentLang === 'es' ? 'Calles Conectoras (3.5 - 5.9)' : 'Secondary Streets (3.5 - 5.9)'}<br>
+            <span style="color:#a3a18e; font-weight:800;">⚪ ${lvlCounts.g}</span> ${currentLang === 'es' ? 'Barrios Residenciales (1.0 - 3.4)' : 'Neighborhoods (1.0 - 3.4)'}<br>
             <span style="color:#00e5ff; font-weight:800;">🔵 ${liberatedStationsCount}</span> ${currentLang === 'es' ? 'Estaciones de Metro satisfaciendo demanda' : 'Subway stations satisfying demand'}
             <div style="margin-top:6px; padding-top:5px; border-top:1px dashed rgba(255,255,255,0.1); font-size:0.7rem; color:#888; text-align:center;">
                 💡 <i>${currentLang === 'es' ? 'Haz clic en cualquier calle o punto del mapa para inspeccionar densidad y demanda' : 'Click any street line on the map to inspect density & demand'}</i>

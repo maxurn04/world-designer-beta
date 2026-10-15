@@ -270,11 +270,11 @@ function isStationIntermodal(st) {
                             </div>
                             <div class="st-stat-box">
                                 <span class="st-stat-label">${tr('stDensity')}</span>
-                                <span class="st-stat-val" style="color:#ffb300;">${st.densityScore || 100} <span style="font-size:0.6rem; color:#888;">h/ha</span></span>
+                                <span class="st-stat-val" style="color:#ffb300;">${Number(st.densityScore || 5.0).toFixed(1)} <span style="font-size:0.65rem; color:#888;">/ 10</span></span>
                             </div>
                             <div class="st-stat-box">
                                 <span class="st-stat-label">${tr('stAttraction')}</span>
-                                <span class="st-stat-val">${attractionVal} <span style="font-size:0.65rem; color:#888;">/200</span></span>
+                                <span class="st-stat-val">${Number(attractionVal || 5.0).toFixed(1)} <span style="font-size:0.65rem; color:#888;">/ 10</span></span>
                             </div>
                         </div>
 
@@ -597,27 +597,28 @@ function isStationIntermodal(st) {
         }
 
         function getStationAttraction(st) {
-            if (!st) return 50;
+            if (!st) return 5.0;
             let pointData = null;
             if (st.latlng) {
                 pointData = (typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(st.latlng) : null;
                 if (pointData) st.densityScore = pointData.density;
             } else if (st.densityScore) {
-                pointData = { density: st.densityScore, attraction: Math.round(st.densityScore / 1.85) };
+                let base = st.densityScore > 10 ? Number((st.densityScore / 20).toFixed(1)) : st.densityScore;
+                pointData = { density: base, attraction: base };
             }
 
             let dCenter = st.latlng ? st.latlng.distanceTo(L.latLng(-33.445, -70.655)) : 9999;
             let dLaPintana = st.latlng ? st.latlng.distanceTo(L.latLng(-33.585, -70.635)) : 9999;
-            let baseAttr = pointData ? pointData.attraction : 50;
+            let baseAttr = pointData ? pointData.attraction : 5.0;
             if (!pointData) {
-                if (dCenter < 2200 || dLaPintana < 1800) baseAttr = 160;
+                if (dCenter < 2200 || dLaPintana < 1800) baseAttr = 8.0;
             }
 
             let multiplier = (st.attrMultiplier || 1.0);
-            if (st.hasElevator) multiplier += 0.25;
-            if (st.hasTurnstiles) multiplier += 0.20;
-            if (st.level > 1) multiplier += (st.level - 1) * 0.08;
-            return Math.min(200, Math.max(10, Math.round(baseAttr * multiplier)));
+            if (st.hasElevator) multiplier += 0.15;
+            if (st.hasTurnstiles) multiplier += 0.10;
+            if (st.level > 1) multiplier += (st.level - 1) * 0.05;
+            return Math.min(10.0, Math.max(1.0, Number((baseAttr * multiplier).toFixed(1))));
         }
 
         function hudUpgradePlatformSize(stId) {
@@ -1068,7 +1069,7 @@ function toggleBuildFromNavbar(e) {
                 stationToEditObj.latlng = targetLatLng;
                 stationToEditObj.marker.setLatLng(targetLatLng);
                 let pData = (typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(targetLatLng) : null;
-                stationToEditObj.densityScore = pData ? pData.density : Math.max(5, 100 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 150)); 
+                stationToEditObj.densityScore = pData ? pData.density : Math.max(1.0, Number((7.0 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 2500)).toFixed(1))); 
 
                 await rebuildLinesPolylines();
                 cancelBuild();
@@ -1133,7 +1134,7 @@ function toggleBuildFromNavbar(e) {
                     revenueThisMonth: 0,
                     expressType: 'common',
                     lines: [],
-                    densityScore: ((typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(targetLatLng).density : Math.max(5, 100 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 150)))
+                    densityScore: ((typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(targetLatLng).density : Math.max(1.0, Number((7.0 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 2500)).toFixed(1))))
                 };
 
                 marker.on('click', (ev) => {

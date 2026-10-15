@@ -739,6 +739,7 @@
                 if (this.options.dashArray) {
                     paint['line-dasharray'] = [2, 2];
                 }
+                const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
                 ml.addLayer({
                     id: this.layerId,
                     type: 'line',
@@ -748,7 +749,7 @@
                         'line-cap': 'round'
                     },
                     paint: paint
-                });
+                }, beforeBuildingsId);
                 if (this._handlers['click'] && this._handlers['click'].length > 0) {
                     this._registerLayerClick(ml);
                 }
@@ -819,7 +820,7 @@
         _registerLayerClick(ml) {
             if (this._clickRegistered) return;
             this._clickRegistered = true;
-            ml.on('click', this.layerId, (e) => {
+            const handleClick = (e) => {
                 if (this._handlers['click']) {
                     const ev = {
                         latlng: new LatLng(e.lngLat.lat, e.lngLat.lng),
@@ -827,7 +828,11 @@
                     };
                     this._handlers['click'].forEach(fn => fn(ev));
                 }
-            });
+            };
+            ml.on('click', this.layerId, handleClick);
+            if (ml.getLayer(this.layerId + '-ground')) {
+                ml.on('click', this.layerId + '-ground', handleClick);
+            }
         }
         setLatLngs(rings) {
             this.rings = rings;
@@ -862,11 +867,20 @@
             Object.assign(this.options, opts);
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
-                if (opts.fillColor && ml.getLayer(this.layerId)) {
-                    ml.setPaintProperty(this.layerId, 'fill-color', resolveColor(opts.fillColor, '#050508'));
+                const col = resolveColor(opts.fillColor, '#050508');
+                const op = opts.fillOpacity !== undefined ? opts.fillOpacity : 0.95;
+                if (ml.getLayer(this.layerId + '-ground')) {
+                    if (opts.fillColor) ml.setPaintProperty(this.layerId + '-ground', 'fill-color', col);
+                    if (opts.fillOpacity !== undefined) ml.setPaintProperty(this.layerId + '-ground', 'fill-opacity', op);
                 }
-                if (opts.fillOpacity !== undefined && ml.getLayer(this.layerId)) {
-                    ml.setPaintProperty(this.layerId, 'fill-opacity', opts.fillOpacity);
+                if (ml.getLayer(this.layerId)) {
+                    if (opts.pane === 'maskPane' || ml.getLayer(this.layerId).type === 'fill-extrusion') {
+                        if (opts.fillColor) ml.setPaintProperty(this.layerId, 'fill-extrusion-color', col);
+                        if (opts.fillOpacity !== undefined) ml.setPaintProperty(this.layerId, 'fill-extrusion-opacity', op);
+                    } else {
+                        if (opts.fillColor) ml.setPaintProperty(this.layerId, 'fill-color', col);
+                        if (opts.fillOpacity !== undefined) ml.setPaintProperty(this.layerId, 'fill-opacity', op);
+                    }
                 }
             }
             return this;
@@ -907,20 +921,35 @@
                 });
 
                 // Active Commune Mask (Fog of War):
-                // Renders dark ground fill UNDER 3D buildings and WebGL traffic cars.
-                // Because 3D buildings (such as Gran Torre Santiago / Costanera Center) render AFTER
-                // the mask, their full 3D geometry rises cleanly OVER the dark blocked zone without any slicing!
+                // 1. Renders dark ground fill UNDER 3D buildings and traffic cars.
+                // 2. Renders 3D extrusion volume (height: 120m) over locked communes with depth testing.
+                // Because unlocked communes are holes in the extrusion, buildings in the blocked zone
+                // are submerged inside the black volume ("van por la zona negra"), while unlocked buildings
+                // (like Gran Torre Santiago / Costanera Center) stand completely in the clear in full 3D!
                 if (this.options.pane === 'maskPane') {
+                    const groundId = this.layerId + '-ground';
                     const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
                     ml.addLayer({
-                        id: this.layerId,
+                        id: groundId,
                         type: 'fill',
                         source: this.sourceId,
                         paint: {
                             'fill-color': resolveColor(this.options.fillColor, '#050508'),
-                            'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.88
+                            'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.95
                         }
                     }, beforeBuildingsId);
+
+                    ml.addLayer({
+                        id: this.layerId,
+                        type: 'fill-extrusion',
+                        source: this.sourceId,
+                        paint: {
+                            'fill-extrusion-color': resolveColor(this.options.fillColor, '#050508'),
+                            'fill-extrusion-height': 120,
+                            'fill-extrusion-base': 0,
+                            'fill-extrusion-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.95
+                        }
+                    });
                 } else {
                     ml.addLayer({
                         id: this.layerId,
@@ -946,6 +975,7 @@
             if (this._parentGroup) this._parentGroup._layers.delete(this);
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
+                if (ml.getLayer(this.layerId + '-ground')) ml.removeLayer(this.layerId + '-ground');
                 if (ml.getLayer(this.layerId)) ml.removeLayer(this.layerId);
                 if (ml.getSource(this.sourceId)) ml.removeSource(this.sourceId);
                 this._added = false;
@@ -1117,6 +1147,16 @@
                 const src = ml.getSource(this.sourceId);
                 if (src && src.updateImage) {
                     src.updateImage({ url: this.url });
+                }
+            }
+            return this;
+        }
+        setOpacity(op) {
+            this.options.opacity = op;
+            if (this._map && this._added) {
+                const ml = this._map.maplibre || this._map;
+                if (ml.getLayer(this.layerId)) {
+                    ml.setPaintProperty(this.layerId, 'raster-opacity', op);
                 }
             }
             return this;

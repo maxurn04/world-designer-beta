@@ -265,7 +265,8 @@ let MAX_CARS = 380;
         }
 
         function scheduleNextStationArrival(st) {
-            let attr = getStationAttraction(st); // 10 to 200
+            let attr = getStationAttraction(st); // 1.0 to 10.0 scale
+            let simAttr = attr * 20; // Scaled to 20 - 200 for internal passenger arrival pacing
             let isPeak = isRushHour();
             let isLow = isNightLowHour();
             let regimeMult = typeof getHourlyRegimeMultiplier === 'function' ? getHourlyRegimeMultiplier() : (isPeak ? 2.5 : (isLow ? 0.22 : 1.0));
@@ -274,7 +275,7 @@ let MAX_CARS = 380;
 
             // Tamaño de grupo y cadencia variable en el tiempo según la atracción y hora:
             // a veces cada 1 segundo 1 persona, a veces cada 6 segundos 4 personas, o ráfagas mayores!
-            let maxBurst = Math.max(1, Math.round((attr / 24) * regimeMult * turnstileMult * eventBoost));
+            let maxBurst = Math.max(1, Math.round((simAttr / 24) * regimeMult * turnstileMult * eventBoost));
             let roll = Math.random();
             let incomingPax = 1;
             let nextDelay = 3.0; // segundos hasta la próxima llegada
@@ -282,7 +283,7 @@ let MAX_CARS = 380;
             if (roll < 0.38) {
                 // Entrada individual (+1 persona cada 0.8 a 2.5 segundos según atracción de la estación)
                 incomingPax = 1;
-                let basePacing = (attr >= 120 && regimeMult >= 1.4) ? (0.7 + Math.random() * 0.8) : (1.4 + Math.random() * 2.2);
+                let basePacing = (simAttr >= 120 && regimeMult >= 1.4) ? (0.7 + Math.random() * 0.8) : (1.4 + Math.random() * 2.2);
                 nextDelay = Math.max(0.6, basePacing / (turnstileMult * Math.sqrt(Math.max(0.2, regimeMult))));
             } else if (roll < 0.74) {
                 // Grupo moderado (+2 a +4 personas cada 3 a 6.5 segundos, ej: 4 personas cada 6 segundos)
@@ -314,7 +315,8 @@ let MAX_CARS = 380;
 
             allStations.forEach(st => {
                 if (!st.lines || st.lines.length === 0) return;
-                let attr = getStationAttraction(st); // 10 to 200
+                let attr = getStationAttraction(st); // 1.0 to 10.0 scale
+                let simAttr = attr * 20; // Scaled to 20 - 200 for internal passenger arrival pacing
                 let maxCap = st.maxCapacity || (100 + ((st.level || 1) - 1) * 50);
                 let currentPax = Object.values(st.passengersByLine || {}).reduce((a, b) => a + b, 0);
                 let turnstileMult = st.hasTurnstiles ? 1.25 : 1.0;
@@ -332,7 +334,7 @@ let MAX_CARS = 380;
                 scheduleNextStationArrival(st);
 
                 // Probabilidad de momento de calma estocástico (sobre todo en horas valle/noche)
-                let arrivalProbability = Math.min(0.96, 0.45 + (attr / 260) * Math.min(2.0, regimeMult));
+                let arrivalProbability = Math.min(0.96, 0.45 + (simAttr / 260) * Math.min(2.0, regimeMult));
                 if (Math.random() > arrivalProbability) return;
 
                 // Respetar capacidad máxima del andén

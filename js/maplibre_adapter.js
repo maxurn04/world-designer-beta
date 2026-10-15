@@ -1134,7 +1134,6 @@
             this._parentGroup = null;
             this._added = false;
             this._isRemoved = false;
-            this._canvas = null;
             this._handlers = {};
         }
         setUrl(url) {
@@ -1142,22 +1141,17 @@
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
                 const src = ml.getSource(this.sourceId);
-                if (src && src.getCanvas) {
-                    const canvas = src.getCanvas();
-                    const img = new Image();
-                    img.onload = () => {
-                        const ctx = canvas.getContext('2d');
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        if (src.play && src.pause) {
-                            src.play();
-                            src.pause();
-                        }
-                        if (ml.triggerRepaint) ml.triggerRepaint();
-                    };
-                    img.src = this.url;
-                } else if (src && src.updateImage) {
-                    src.updateImage({ url: this.url });
+                if (src && typeof src.updateImage === 'function') {
+                    const sw = this.bounds.getSouthWest();
+                    const ne = this.bounds.getNorthEast();
+                    const coords = [
+                        [sw.lng, ne.lat],
+                        [ne.lng, ne.lat],
+                        [ne.lng, sw.lat],
+                        [sw.lng, sw.lat]
+                    ];
+                    src.updateImage({ url: this.url, coordinates: coords });
+                    if (ml.triggerRepaint) ml.triggerRepaint();
                 }
             }
             return this;
@@ -1223,83 +1217,40 @@
                 ];
 
                 const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
-                const rasterOpacity = this.options.opacity !== undefined ? this.options.opacity : 0.38;
+                const rasterOpacity = this.options.opacity !== undefined ? this.options.opacity : 0.85;
 
-                // Load image into an offscreen canvas for 100% universal compatibility
-                // (supports file://, blob:, data:, and http/https without CORS or fetch failure)
-                const img = new Image();
-                img.onload = () => {
-                    if (this._isRemoved || !this._map) return;
-                    if (ml.getSource(this.sourceId)) return;
-
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth || 2560;
-                    canvas.height = img.naturalHeight || 2807;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-
-                    this._canvas = canvas;
-
-                    try {
-                        ml.addSource(this.sourceId, {
-                            type: 'canvas',
-                            canvas: canvas,
-                            coordinates: coords,
-                            animate: false
-                        });
-                        ml.addLayer({
-                            id: this.layerId,
-                            type: 'raster',
-                            source: this.sourceId,
-                            paint: {
-                                'raster-opacity': rasterOpacity
-                            }
-                        }, beforeBuildingsId);
-                        this._added = true;
-                    } catch(err) {
-                        this._fallbackImageSource(ml, coords, rasterOpacity, beforeBuildingsId);
-                    }
-                };
-                img.onerror = () => {
-                    if (this._isRemoved || !this._map) return;
-                    this._fallbackImageSource(ml, coords, rasterOpacity, beforeBuildingsId);
-                };
-                img.src = this.url;
+                try {
+                    ml.addSource(this.sourceId, {
+                        type: 'image',
+                        url: this.url,
+                        coordinates: coords
+                    });
+                    ml.addLayer({
+                        id: this.layerId,
+                        type: 'raster',
+                        source: this.sourceId,
+                        paint: {
+                            'raster-opacity': rasterOpacity,
+                            'raster-fade-duration': 0
+                        }
+                    }, beforeBuildingsId);
+                    this._added = true;
+                } catch(e) {
+                    console.warn('Image overlay notice:', e);
+                }
             });
             return this;
-        }
-        _fallbackImageSource(ml, coords, rasterOpacity, beforeId) {
-            if (this._isRemoved || ml.getSource(this.sourceId)) return;
-            try {
-                ml.addSource(this.sourceId, {
-                    type: 'image',
-                    url: this.url,
-                    coordinates: coords
-                });
-                ml.addLayer({
-                    id: this.layerId,
-                    type: 'raster',
-                    source: this.sourceId,
-                    paint: {
-                        'raster-opacity': rasterOpacity
-                    }
-                }, beforeId);
-                this._added = true;
-            } catch(e) {
-                console.warn('Fallback image source notice:', e);
-            }
         }
         remove() {
             this._isRemoved = true;
             if (this._map && this._map._layers) this._map._layers.delete(this);
             if (this._parentGroup) this._parentGroup._layers.delete(this);
-            if (this._map && this._added) {
+            if (this._map) {
                 const ml = this._map.maplibre || this._map;
-                if (ml.getLayer(this.layerId)) ml.removeLayer(this.layerId);
-                if (ml.getSource(this.sourceId)) ml.removeSource(this.sourceId);
-                this._added = false;
+                if (ml.getLayer && ml.getLayer(this.layerId)) ml.removeLayer(this.layerId);
+                if (ml.getSource && ml.getSource(this.sourceId)) ml.removeSource(this.sourceId);
             }
-            this._canvas = null;
+            this._added = false;
             this._map = null;
             return this;
         }
@@ -1583,28 +1534,49 @@
             if (active) {
                 // Density & Attraction Heatmap Mode:
                 // 3D buildings colored by density & transit demand tiers:
-                // - Tier 1: Red (#d50000 / #ff0055) -> Critical demand / Major transit hubs & towers (8.5 - 10.0)
+                // - Tier 1: Red (#d50000 / #ff1744) -> Critical demand / Major transit hubs & towers (8.5 - 10.0)
                 // - Tier 2: Orange (#ff9100) -> High density urban corridors (6.0 - 8.4)
                 // - Tier 3: Yellow (#ffb300) -> Moderate density / Connecting streets (3.5 - 5.9)
-                // - Tier 4: Gray/Neutral (#a3a18e) -> Low density residential neighborhoods (1.0 - 3.4)
+                // - Tier 4: Gray/Neutral (#8e96a0) -> Low density residential neighborhoods (1.0 - 3.4)
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
+                    'case',
+                    ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 35],
+                    '#ff1744',
+                    ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 20],
+                    '#ff9100',
+                    [
+                        'step',
+                        ['%', ['coalesce', ['id'], 0], 100],
+                        '#d50000',
+                        35, '#ff9100',
+                        55, '#ffb300',
+                        75, '#8e96a0'
+                    ]
+                ]);
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-height', [
                     'interpolate',
                     ['linear'],
-                    ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
-                    0,   '#a3a18e', // Tier 4: Residential / Barrio (1.0 - 3.4)
-                    10,  '#a3a18e',
-                    14,  '#ffb300', // Tier 3: Moderate / Calle Conectora (3.5 - 5.9)
-                    24,  '#ff9100', // Tier 2: High Urban / Corredor Comercial (6.0 - 8.4)
-                    50,  '#d50000', // Tier 1: Critical Demand / Gran Avenida (8.5 - 10.0)
-                    100, '#ff1744', // High-density Tower / Transit Hub
-                    200, '#ff0055', // Landmark Skyscraper
-                    300, '#e91e63'  // Costanera Center Peak Demanda (10.0)
+                    ['zoom'],
+                    13.0, 0,
+                    14.2, [
+                        'case',
+                        ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 0],
+                        ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
+                        [
+                            'step',
+                            ['%', ['coalesce', ['id'], 0], 100],
+                            28,
+                            35, 18,
+                            55, 14,
+                            75, 9
+                        ]
+                    ]
                 ]);
-                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', 0.82);
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', 0.85);
                 this.maplibre.setLight({
                     anchor: 'viewport',
                     color: '#ffffff',
-                    intensity: 0.65,
+                    intensity: 0.70,
                     position: [1.25, 120, 50]
                 });
             } else {
@@ -1619,6 +1591,13 @@
                     100, '#636e9e',
                     200, '#7b89c4',
                     300, '#93a3e6'
+                ]);
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-height', [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    13.0, 0,
+                    14.2, ['coalesce', ['get', 'render_height'], ['get', 'height'], 12]
                 ]);
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', [
                     'interpolate',

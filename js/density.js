@@ -392,92 +392,15 @@ function inspectDensityPoint(latlng) {
     });
 }
 
-// High-Performance Raster Loader: Uses pre-rendered GPU PNGs with Canvas fallback
+// High-Performance GPU Raster Loader: Directly uses pre-rendered PNG level maps
 function loadDensityRaster(lvl, callback) {
     if (densityRasterCache[lvl]) {
         callback(densityRasterCache[lvl]);
         return;
     }
-
-    let pngCandidates = [
-        `density_maps/santiago_density_lvl${lvl}.png`,
-        `./density_maps/santiago_density_lvl${lvl}.png`,
-        `JUEGO/density_maps/santiago_density_lvl${lvl}.png`,
-        `santiago_density_lvl${lvl}.png`,
-        `./santiago_density_lvl${lvl}.png`,
-        `JUEGO/santiago_density_lvl${lvl}.png`
-    ];
-    let idx = 0;
-
-    function tryNextPng() {
-        if (idx >= pngCandidates.length) {
-            // Fallback: in-browser Canvas rasterization from SVG
-            rasterizeSvgToCanvasBlob(lvl, callback);
-            return;
-        }
-        let url = pngCandidates[idx++];
-        let testImg = new Image();
-        testImg.onload = function() {
-            densityRasterCache[lvl] = url;
-            callback(url);
-        };
-        testImg.onerror = function() {
-            tryNextPng();
-        };
-        testImg.src = url;
-    }
-
-    tryNextPng();
-}
-
-function rasterizeSvgToCanvasBlob(lvl, callback) {
-    let svgCandidates = [
-        `density_maps/santiago_density_lvl${lvl}.svg`,
-        `./density_maps/santiago_density_lvl${lvl}.svg`,
-        `JUEGO/density_maps/santiago_density_lvl${lvl}.svg`,
-        `santiago_density_lvl${lvl}.svg`,
-        `./santiago_density_lvl${lvl}.svg`
-    ];
-    let sIdx = 0;
-
-    function tryNextSvg() {
-        if (sIdx >= svgCandidates.length) {
-            callback(`density_maps/santiago_density_lvl${lvl}.svg`);
-            return;
-        }
-        let svgUrl = svgCandidates[sIdx++];
-        let svgImg = new Image();
-        svgImg.crossOrigin = 'anonymous';
-        svgImg.onload = function() {
-            try {
-                let canvas = document.createElement('canvas');
-                canvas.width = 2560;
-                canvas.height = 2807;
-                let ctx = canvas.getContext('2d');
-                ctx.drawImage(svgImg, 0, 0, 2560, 2807);
-                canvas.toBlob(function(blob) {
-                    if (blob) {
-                        let blobUrl = URL.createObjectURL(blob);
-                        densityRasterCache[lvl] = blobUrl;
-                        callback(blobUrl);
-                    } else {
-                        densityRasterCache[lvl] = svgUrl;
-                        callback(svgUrl);
-                    }
-                }, 'image/png');
-            } catch (e) {
-                console.warn("Offscreen rasterization failed:", e);
-                densityRasterCache[lvl] = svgUrl;
-                callback(svgUrl);
-            }
-        };
-        svgImg.onerror = function() {
-            tryNextSvg();
-        };
-        svgImg.src = svgUrl;
-    }
-
-    tryNextSvg();
+    let url = `density_maps/santiago_density_lvl${lvl}.png`;
+    densityRasterCache[lvl] = url;
+    callback(url);
 }
 
 function renderDensityMapFilter() {
@@ -505,11 +428,11 @@ function renderDensityMapFilter() {
             if (santiagoStreetOverlay && densityMapLayerGroup.hasLayer(santiagoStreetOverlay)) {
                 santiagoStreetOverlay.setUrl(rasterUrl);
                 if (typeof santiagoStreetOverlay.setOpacity === 'function') {
-                    santiagoStreetOverlay.setOpacity(0.38);
+                    santiagoStreetOverlay.setOpacity(0.85);
                 }
             } else {
                 santiagoStreetOverlay = L.imageOverlay(rasterUrl, SANTIAGO_DENSITY_BOUNDS, {
-                    opacity: 0.38,
+                    opacity: 0.85,
                     interactive: false,
                     pane: 'densityStreetPane',
                     zIndex: 340,

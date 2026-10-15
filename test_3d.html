@@ -63,48 +63,68 @@
         map.on('load', () => {
             console.log('Map loaded, injecting 3D building extrusions...');
             
-            // Find label layer to insert buildings beneath text
+            // Hide 2D flat footprints
+            if (map.getLayer('building')) {
+                map.setLayoutProperty('building', 'visibility', 'none');
+            }
+
+            // Find place labels layer so roads are drawn under buildings
             const layers = map.getStyle().layers;
-            let labelLayerId;
+            let targetBeforeId = null;
             for (let i = 0; i < layers.length; i++) {
-                if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']) {
-                    labelLayerId = layers[i].id;
+                if (layers[i].id && layers[i].id.startsWith('place_')) {
+                    targetBeforeId = layers[i].id;
                     break;
                 }
             }
 
-            // Check if openmaptiles is the source
             const sourceName = map.getSource('openmaptiles') ? 'openmaptiles' : null;
 
             if (sourceName) {
+                map.setLight({
+                    anchor: 'viewport',
+                    color: '#ffffff',
+                    intensity: 0.55,
+                    position: [1.25, 120, 50]
+                });
+
                 map.addLayer({
                     'id': '3d-buildings',
                     'source': sourceName,
                     'source-layer': 'building',
                     'type': 'fill-extrusion',
-                    'minzoom': 13.5,
+                    'minzoom': 13.0,
                     'paint': {
                         'fill-extrusion-color': [
                             'interpolate',
                             ['linear'],
-                            ['coalesce', ['get', 'render_height'], 10],
-                            0, '#1a1a24',
-                            20, '#262638',
-                            50, '#383854',
-                            100, '#50507a',
-                            200, '#6c6ca3'
+                            ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
+                            0, '#30344a',
+                            20, '#3d4361',
+                            50, '#4e567d',
+                            100, '#636e9e',
+                            200, '#7b89c4',
+                            300, '#93a3e6'
                         ],
                         'fill-extrusion-height': [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
-                            13.5, 0,
-                            14.5, ['coalesce', ['get', 'render_height'], 12]
+                            13.0, 0,
+                            14.2, ['coalesce', ['get', 'render_height'], ['get', 'height'], 12]
                         ],
-                        'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-                        'fill-extrusion-opacity': 0.88
+                        'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+                        'fill-extrusion-opacity': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            13.0, 1.0,
+                            16.8, 1.0,
+                            17.8, 0.72,
+                            19.0, 0.45
+                        ]
                     }
-                }, labelLayerId);
+                }, targetBeforeId);
             }
         });
 

@@ -634,22 +634,31 @@
 
         _inject3DBuildings() {
             try {
+                // Hide 2D flat building footprints to prevent ground z-fighting
+                if (this.maplibre.getLayer('building')) {
+                    this.maplibre.setLayoutProperty('building', 'visibility', 'none');
+                }
+
+                // Place 3D buildings AFTER all road/highway/railway layers, but BEFORE place labels.
+                // This ensures that roads, highways and motorways are drawn on the ground UNDER the buildings,
+                // making building walls 100% solid and occluding everything behind them!
                 const layers = this.maplibre.getStyle().layers;
-                let labelLayerId;
+                let targetBeforeId = null;
                 for (let i = 0; i < layers.length; i++) {
-                    if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']) {
-                        labelLayerId = layers[i].id;
+                    if (layers[i].id && layers[i].id.startsWith('place_')) {
+                        targetBeforeId = layers[i].id;
                         break;
                     }
                 }
+
                 const sourceName = this.maplibre.getSource('openmaptiles') ? 'openmaptiles' : null;
                 if (sourceName && !this.maplibre.getLayer('3d-buildings')) {
-                    // Set directional sun lighting to make building walls and roofs crisp and defined
+                    // Crisp directional sun lighting to give solid contrast between rooftops and walls
                     this.maplibre.setLight({
                         anchor: 'viewport',
                         color: '#ffffff',
-                        intensity: 0.45,
-                        position: [1.2, 110, 45]
+                        intensity: 0.55,
+                        position: [1.25, 120, 50]
                     });
 
                     this.maplibre.addLayer({
@@ -662,25 +671,35 @@
                             'fill-extrusion-color': [
                                 'interpolate',
                                 ['linear'],
-                                ['coalesce', ['get', 'render_height'], 12],
-                                0, '#2b2f42',
-                                15, '#373c54',
-                                35, '#4a5173',
-                                75, '#5e6791',
-                                150, '#7580b3',
-                                300, '#8f9cd6'
+                                ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
+                                0, '#30344a',
+                                20, '#3d4361',
+                                50, '#4e567d',
+                                100, '#636e9e',
+                                200, '#7b89c4',
+                                300, '#93a3e6'
                             ],
                             'fill-extrusion-height': [
                                 'interpolate',
                                 ['linear'],
                                 ['zoom'],
                                 13.0, 0,
-                                14.2, ['coalesce', ['get', 'render_height'], 12]
+                                14.2, ['coalesce', ['get', 'render_height'], ['get', 'height'], 12]
                             ],
-                            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-                            'fill-extrusion-opacity': 1.0
+                            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+                            // 100% solid and completely opaque at normal/distance view;
+                            // smoothly transitions to semi-transparent only when zooming in very close (zoom >= 17)
+                            'fill-extrusion-opacity': [
+                                'interpolate',
+                                ['linear'],
+                                ['zoom'],
+                                13.0, 1.0,
+                                16.8, 1.0,
+                                17.8, 0.72,
+                                19.0, 0.45
+                            ]
                         }
-                    }, labelLayerId);
+                    }, targetBeforeId);
                 }
             } catch(e) {
                 console.warn('3D Buildings injection notice:', e);

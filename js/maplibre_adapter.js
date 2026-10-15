@@ -37,6 +37,46 @@
         return c;
     }
 
+    function isLayerGroup(target) {
+        return (target instanceof LayerGroupAdapter) || (target && typeof target.addLayer === 'function' && !target.maplibre);
+    }
+
+    function makeLineFeature(coords) {
+        if (!coords || coords.length < 2) {
+            return {
+                type: 'Feature',
+                geometry: null,
+                properties: {}
+            };
+        }
+        return {
+            type: 'Feature',
+            geometry: {
+                type: 'LineString',
+                coordinates: coords
+            },
+            properties: {}
+        };
+    }
+
+    function makePolygonFeature(rings) {
+        if (!rings || rings.length === 0 || !rings[0] || rings[0].length < 3) {
+            return {
+                type: 'Feature',
+                geometry: null,
+                properties: {}
+            };
+        }
+        return {
+            type: 'Feature',
+            geometry: {
+                type: 'Polygon',
+                coordinates: rings
+            },
+            properties: {}
+        };
+    }
+
     class LatLng {
         constructor(lat, lng) {
             if (Array.isArray(lat)) {
@@ -67,8 +107,13 @@
 
     class LatLngBounds {
         constructor(southWest, northEast) {
-            this._sw = new LatLng(southWest);
-            this._ne = new LatLng(northEast);
+            if (Array.isArray(southWest) && !northEast) {
+                this._sw = new LatLng(southWest[0]);
+                this._ne = new LatLng(southWest[1]);
+            } else {
+                this._sw = new LatLng(southWest);
+                this._ne = new LatLng(northEast);
+            }
         }
         getSouth() { return this._sw.lat; }
         getWest() { return this._sw.lng; }
@@ -99,6 +144,9 @@
             if (options.zIndexOffset) {
                 this.element.style.zIndex = options.zIndexOffset;
             }
+            if (options.interactive === false) {
+                this.element.style.pointerEvents = 'none';
+            }
             if (options.icon && options.icon.html) {
                 this.element.innerHTML = options.icon.html;
                 if (options.icon.className) {
@@ -107,6 +155,7 @@
             }
             this._marker = null;
             this._map = null;
+            this._parentGroup = null;
             this._handlers = {};
 
             ['click', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].forEach(evtName => {
@@ -157,8 +206,31 @@
             this._handlers[event] = this._handlers[event].filter(h => h !== handler);
             return this;
         }
+        bindTooltip(content, options = {}) {
+            this._tooltipContent = content;
+            this._tooltipOptions = options;
+            return this;
+        }
+        unbindTooltip() {
+            this._tooltipContent = null;
+            return this;
+        }
+        bindPopup(content, options = {}) {
+            this._popupContent = content;
+            this._popupOptions = options;
+            return this;
+        }
+        unbindPopup() {
+            this._popupContent = null;
+            return this;
+        }
         addTo(targetMap) {
+            if (isLayerGroup(targetMap)) {
+                targetMap.addLayer(this);
+                return this;
+            }
             this._map = targetMap;
+            if (targetMap && targetMap._layers) targetMap._layers.add(this);
             const ml = targetMap.maplibre || targetMap;
             if (!this._marker) {
                 this._marker = new maplibregl.Marker({
@@ -173,9 +245,12 @@
             return this;
         }
         remove() {
+            if (this._map && this._map._layers) this._map._layers.delete(this);
+            if (this._parentGroup) this._parentGroup._layers.delete(this);
             if (this._marker) {
                 this._marker.remove();
             }
+            this._map = null;
             return this;
         }
     }
@@ -185,9 +260,25 @@
             this.latlng = new LatLng(latlng);
             this.options = Object.assign({ radius: 8, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.5 }, options);
             this.element = document.createElement('div');
-            this.element.className = 'maplibre-circle-marker';
+            this.element.className = 'maplibre-circle-marker ' + (options.className || '');
+            this._handlers = {};
             this._updateStyles();
             this._marker = null;
+            this._map = null;
+            this._parentGroup = null;
+
+            ['click', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].forEach(evtName => {
+                this.element.addEventListener(evtName, (ev) => {
+                    if (this._handlers[evtName]) {
+                        const fakeEv = {
+                            latlng: this.latlng,
+                            originalEvent: ev,
+                            target: this
+                        };
+                        this._handlers[evtName].forEach(fn => fn(fakeEv));
+                    }
+                });
+            });
         }
         _updateStyles() {
             const r = this.options.radius || 8;
@@ -205,6 +296,8 @@
             }
 
             this.element.style.display = 'block';
+            this.element.style.margin = '0';
+            this.element.style.padding = '0';
             this.element.style.width = (r * 2) + 'px';
             this.element.style.height = (r * 2) + 'px';
             this.element.style.borderRadius = '50%';
@@ -226,7 +319,41 @@
             this._updateStyles();
             return this;
         }
+        on(event, handler) {
+            if (!this._handlers[event]) this._handlers[event] = [];
+            this._handlers[event].push(handler);
+            return this;
+        }
+        off(event, handler) {
+            if (!this._handlers[event]) return this;
+            this._handlers[event] = this._handlers[event].filter(h => h !== handler);
+            return this;
+        }
+        bindTooltip(content, options = {}) {
+            this._tooltipContent = content;
+            this._tooltipOptions = options;
+            return this;
+        }
+        unbindTooltip() {
+            this._tooltipContent = null;
+            return this;
+        }
+        bindPopup(content, options = {}) {
+            this._popupContent = content;
+            this._popupOptions = options;
+            return this;
+        }
+        unbindPopup() {
+            this._popupContent = null;
+            return this;
+        }
         addTo(targetMap) {
+            if (isLayerGroup(targetMap)) {
+                targetMap.addLayer(this);
+                return this;
+            }
+            this._map = targetMap;
+            if (targetMap && targetMap._layers) targetMap._layers.add(this);
             const ml = targetMap.maplibre || targetMap;
             if (!this._marker) {
                 this._marker = new maplibregl.Marker({
@@ -241,7 +368,10 @@
             return this;
         }
         remove() {
+            if (this._map && this._map._layers) this._map._layers.delete(this);
+            if (this._parentGroup) this._parentGroup._layers.delete(this);
             if (this._marker) this._marker.remove();
+            this._map = null;
             return this;
         }
     }
@@ -254,7 +384,10 @@
             this.coords = coords;
             this.options = Object.assign({ color: '#ffcc00', weight: 4, opacity: 0.9 }, options);
             this._map = null;
+            this._parentGroup = null;
             this._added = false;
+            this._isRemoved = false;
+            this._handlers = {};
         }
         _toLngLats(coords) {
             if (!coords) return [];
@@ -270,13 +403,7 @@
                 const ml = this._map.maplibre || this._map;
                 const src = ml.getSource(this.sourceId);
                 if (src) {
-                    src.setData({
-                        type: 'Feature',
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: this._toLngLats(this.coords)
-                        }
-                    });
+                    src.setData(makeLineFeature(this._toLngLats(this.coords)));
                 }
             }
             return this;
@@ -291,21 +418,67 @@
             }
             return this;
         }
+        on(event, handler) {
+            if (!this._handlers[event]) this._handlers[event] = [];
+            this._handlers[event].push(handler);
+            if (event === 'click' && this._added && this._map) {
+                const ml = this._map.maplibre || this._map;
+                this._registerLayerClick(ml);
+            }
+            return this;
+        }
+        off(event, handler) {
+            if (!this._handlers[event]) return this;
+            this._handlers[event] = this._handlers[event].filter(h => h !== handler);
+            return this;
+        }
+        bindTooltip(content, options = {}) {
+            this._tooltipContent = content;
+            this._tooltipOptions = options;
+            return this;
+        }
+        unbindTooltip() {
+            this._tooltipContent = null;
+            return this;
+        }
+        bindPopup(content, options = {}) {
+            this._popupContent = content;
+            this._popupOptions = options;
+            return this;
+        }
+        unbindPopup() {
+            this._popupContent = null;
+            return this;
+        }
+        _registerLayerClick(ml) {
+            if (this._clickRegistered) return;
+            this._clickRegistered = true;
+            ml.on('click', this.layerId, (e) => {
+                if (this._handlers['click']) {
+                    const ev = {
+                        latlng: new LatLng(e.lngLat.lat, e.lngLat.lng),
+                        originalEvent: e.originalEvent
+                    };
+                    this._handlers['click'].forEach(fn => fn(ev));
+                }
+            });
+        }
         addTo(targetMap) {
+            if (isLayerGroup(targetMap)) {
+                targetMap.addLayer(this);
+                return this;
+            }
             this._map = targetMap;
+            if (targetMap && targetMap._layers) targetMap._layers.add(this);
+            this._isRemoved = false;
             const ml = targetMap.maplibre || targetMap;
             targetMap._runWhenReady(() => {
+                if (this._isRemoved) return;
                 if (ml.getSource(this.sourceId)) return;
                 const lngLats = this._toLngLats(this.coords);
                 ml.addSource(this.sourceId, {
                     type: 'geojson',
-                    data: {
-                        type: 'Feature',
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: lngLats.length >= 2 ? lngLats : []
-                        }
-                    }
+                    data: makeLineFeature(lngLats)
                 });
                 const paint = {
                     'line-color': resolveColor(this.options.color, '#ffcc00'),
@@ -325,17 +498,24 @@
                     },
                     paint: paint
                 });
+                if (this._handlers['click'] && this._handlers['click'].length > 0) {
+                    this._registerLayerClick(ml);
+                }
                 this._added = true;
             });
             return this;
         }
         remove() {
+            this._isRemoved = true;
+            if (this._map && this._map._layers) this._map._layers.delete(this);
+            if (this._parentGroup) this._parentGroup._layers.delete(this);
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
                 if (ml.getLayer(this.layerId)) ml.removeLayer(this.layerId);
                 if (ml.getSource(this.sourceId)) ml.removeSource(this.sourceId);
                 this._added = false;
             }
+            this._map = null;
             return this;
         }
     }
@@ -348,21 +528,78 @@
             this.rings = rings;
             this.options = options;
             this._map = null;
+            this._parentGroup = null;
             this._added = false;
+            this._isRemoved = false;
             this._handlers = {};
         }
         on(event, handler) {
             if (!this._handlers[event]) this._handlers[event] = [];
             this._handlers[event].push(handler);
+            if (event === 'click' && this._added && this._map) {
+                const ml = this._map.maplibre || this._map;
+                this._registerLayerClick(ml);
+            }
             return this;
         }
+        off(event, handler) {
+            if (!this._handlers[event]) return this;
+            this._handlers[event] = this._handlers[event].filter(h => h !== handler);
+            return this;
+        }
+        bindTooltip(content, options = {}) {
+            this._tooltipContent = content;
+            this._tooltipOptions = options;
+            return this;
+        }
+        unbindTooltip() {
+            this._tooltipContent = null;
+            return this;
+        }
+        bindPopup(content, options = {}) {
+            this._popupContent = content;
+            this._popupOptions = options;
+            return this;
+        }
+        unbindPopup() {
+            this._popupContent = null;
+            return this;
+        }
+        _registerLayerClick(ml) {
+            if (this._clickRegistered) return;
+            this._clickRegistered = true;
+            ml.on('click', this.layerId, (e) => {
+                if (this._handlers['click']) {
+                    const ev = {
+                        latlng: new LatLng(e.lngLat.lat, e.lngLat.lng),
+                        originalEvent: e.originalEvent
+                    };
+                    this._handlers['click'].forEach(fn => fn(ev));
+                }
+            });
+        }
         addTo(targetMap) {
+            if (isLayerGroup(targetMap)) {
+                targetMap.addLayer(this);
+                return this;
+            }
             this._map = targetMap;
+            if (targetMap && targetMap._layers) targetMap._layers.add(this);
+            this._isRemoved = false;
             const ml = targetMap.maplibre || targetMap;
             targetMap._runWhenReady(() => {
+                if (this._isRemoved) return;
                 if (ml.getSource(this.sourceId)) return;
-                const coords = this.rings.map(ring => {
-                    let r = ring.map(pt => [Number(pt[1]), Number(pt[0])]);
+                let coordsRings = this.rings;
+                if (coordsRings.length > 0 && (typeof coordsRings[0][0] === 'number' || coordsRings[0].lat !== undefined)) {
+                    coordsRings = [coordsRings];
+                }
+                const coords = coordsRings.map(ring => {
+                    let r = ring.map(pt => {
+                        if (Array.isArray(pt)) return [Number(pt[1]), Number(pt[0])];
+                        if (pt && typeof pt.lat === 'number') return [Number(pt.lng), Number(pt.lat)];
+                        return [0, 0];
+                    });
                     if (r.length > 0) {
                         let first = r[0], last = r[r.length - 1];
                         if (first[0] !== last[0] || first[1] !== last[1]) {
@@ -373,13 +610,7 @@
                 });
                 ml.addSource(this.sourceId, {
                     type: 'geojson',
-                    data: {
-                        type: 'Feature',
-                        geometry: {
-                            type: 'Polygon',
-                            coordinates: coords
-                        }
-                    }
+                    data: makePolygonFeature(coords)
                 });
                 ml.addLayer({
                     id: this.layerId,
@@ -390,26 +621,24 @@
                         'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.88
                     }
                 });
-                if (this._handlers['click']) {
-                    ml.on('click', this.layerId, (e) => {
-                        const ev = {
-                            latlng: new LatLng(e.lngLat.lat, e.lngLat.lng),
-                            originalEvent: e.originalEvent
-                        };
-                        this._handlers['click'].forEach(fn => fn(ev));
-                    });
+                if (this._handlers['click'] && this._handlers['click'].length > 0) {
+                    this._registerLayerClick(ml);
                 }
                 this._added = true;
             });
             return this;
         }
         remove() {
+            this._isRemoved = true;
+            if (this._map && this._map._layers) this._map._layers.delete(this);
+            if (this._parentGroup) this._parentGroup._layers.delete(this);
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
                 if (ml.getLayer(this.layerId)) ml.removeLayer(this.layerId);
                 if (ml.getSource(this.sourceId)) ml.removeSource(this.sourceId);
                 this._added = false;
             }
+            this._map = null;
             return this;
         }
     }
@@ -424,7 +653,10 @@
             this.radius = options.radius || 300;
             this.options = options;
             this._map = null;
+            this._parentGroup = null;
             this._added = false;
+            this._isRemoved = false;
+            this._handlers = {};
         }
         _generateCirclePolygon(centerLat, centerLng, radiusMeters, points = 48) {
             const coords = [];
@@ -439,10 +671,62 @@
             }
             return [coords];
         }
+        on(event, handler) {
+            if (!this._handlers[event]) this._handlers[event] = [];
+            this._handlers[event].push(handler);
+            if (event === 'click' && this._added && this._map) {
+                const ml = this._map.maplibre || this._map;
+                this._registerLayerClick(ml);
+            }
+            return this;
+        }
+        off(event, handler) {
+            if (!this._handlers[event]) return this;
+            this._handlers[event] = this._handlers[event].filter(h => h !== handler);
+            return this;
+        }
+        bindTooltip(content, options = {}) {
+            this._tooltipContent = content;
+            this._tooltipOptions = options;
+            return this;
+        }
+        unbindTooltip() {
+            this._tooltipContent = null;
+            return this;
+        }
+        bindPopup(content, options = {}) {
+            this._popupContent = content;
+            this._popupOptions = options;
+            return this;
+        }
+        unbindPopup() {
+            this._popupContent = null;
+            return this;
+        }
+        _registerLayerClick(ml) {
+            if (this._clickRegistered) return;
+            this._clickRegistered = true;
+            ml.on('click', this.layerId, (e) => {
+                if (this._handlers['click']) {
+                    const ev = {
+                        latlng: new LatLng(e.lngLat.lat, e.lngLat.lng),
+                        originalEvent: e.originalEvent
+                    };
+                    this._handlers['click'].forEach(fn => fn(ev));
+                }
+            });
+        }
         addTo(targetMap) {
+            if (isLayerGroup(targetMap)) {
+                targetMap.addLayer(this);
+                return this;
+            }
             this._map = targetMap;
+            if (targetMap && targetMap._layers) targetMap._layers.add(this);
+            this._isRemoved = false;
             const ml = targetMap.maplibre || targetMap;
             targetMap._runWhenReady(() => {
+                if (this._isRemoved) return;
                 if (ml.getSource(this.sourceId)) return;
                 const polygonCoords = this._generateCirclePolygon(this.latlng.lat, this.latlng.lng, this.radius);
                 ml.addSource(this.sourceId, {
@@ -464,21 +748,30 @@
                         'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.2
                     }
                 });
+                const linePaint = {
+                    'line-color': resolveColor(this.options.color, '#00e5ff'),
+                    'line-width': this.options.weight || 2
+                };
+                if (this.options.dashArray) {
+                    linePaint['line-dasharray'] = [2, 2];
+                }
                 ml.addLayer({
                     id: this.lineLayerId,
                     type: 'line',
                     source: this.sourceId,
-                    paint: {
-                        'line-color': resolveColor(this.options.color, '#00e5ff'),
-                        'line-width': this.options.weight || 2,
-                        'line-dasharray': [2, 2]
-                    }
+                    paint: linePaint
                 });
+                if (this._handlers['click'] && this._handlers['click'].length > 0) {
+                    this._registerLayerClick(ml);
+                }
                 this._added = true;
             });
             return this;
         }
         remove() {
+            this._isRemoved = true;
+            if (this._map && this._map._layers) this._map._layers.delete(this);
+            if (this._parentGroup) this._parentGroup._layers.delete(this);
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
                 if (ml.getLayer(this.lineLayerId)) ml.removeLayer(this.lineLayerId);
@@ -486,6 +779,7 @@
                 if (ml.getSource(this.sourceId)) ml.removeSource(this.sourceId);
                 this._added = false;
             }
+            this._map = null;
             return this;
         }
     }
@@ -499,7 +793,10 @@
             this.bounds = bounds;
             this.options = options;
             this._map = null;
+            this._parentGroup = null;
             this._added = false;
+            this._isRemoved = false;
+            this._handlers = {};
         }
         setUrl(url) {
             this.url = url;
@@ -512,10 +809,45 @@
             }
             return this;
         }
+        on(event, handler) {
+            if (!this._handlers[event]) this._handlers[event] = [];
+            this._handlers[event].push(handler);
+            return this;
+        }
+        off(event, handler) {
+            if (!this._handlers[event]) return this;
+            this._handlers[event] = this._handlers[event].filter(h => h !== handler);
+            return this;
+        }
+        bindTooltip(content, options = {}) {
+            this._tooltipContent = content;
+            this._tooltipOptions = options;
+            return this;
+        }
+        unbindTooltip() {
+            this._tooltipContent = null;
+            return this;
+        }
+        bindPopup(content, options = {}) {
+            this._popupContent = content;
+            this._popupOptions = options;
+            return this;
+        }
+        unbindPopup() {
+            this._popupContent = null;
+            return this;
+        }
         addTo(targetMap) {
+            if (isLayerGroup(targetMap)) {
+                targetMap.addLayer(this);
+                return this;
+            }
             this._map = targetMap;
+            if (targetMap && targetMap._layers) targetMap._layers.add(this);
+            this._isRemoved = false;
             const ml = targetMap.maplibre || targetMap;
             targetMap._runWhenReady(() => {
+                if (this._isRemoved) return;
                 if (ml.getSource(this.sourceId)) return;
                 const sw = this.bounds.getSouthWest();
                 const ne = this.bounds.getNorthEast();
@@ -529,6 +861,7 @@
                         [sw.lng, sw.lat]
                     ]
                 });
+                const beforeId = ml.getLayer('3d-buildings') ? '3d-buildings' : undefined;
                 ml.addLayer({
                     id: this.layerId,
                     type: 'raster',
@@ -536,18 +869,22 @@
                     paint: {
                         'raster-opacity': this.options.opacity !== undefined ? this.options.opacity : 0.95
                     }
-                });
+                }, beforeId);
                 this._added = true;
             });
             return this;
         }
         remove() {
+            this._isRemoved = true;
+            if (this._map && this._map._layers) this._map._layers.delete(this);
+            if (this._parentGroup) this._parentGroup._layers.delete(this);
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
                 if (ml.getLayer(this.layerId)) ml.removeLayer(this.layerId);
                 if (ml.getSource(this.sourceId)) ml.removeSource(this.sourceId);
                 this._added = false;
             }
+            this._map = null;
             return this;
         }
     }
@@ -556,15 +893,24 @@
         constructor(layers = []) {
             this._layers = new Set(layers);
             this._map = null;
+            this._parentGroup = null;
+            this._handlers = {};
         }
         addLayer(layer) {
+            if (!layer) return this;
             this._layers.add(layer);
-            if (this._map) layer.addTo(this._map);
+            layer._parentGroup = this;
+            if (this._map) {
+                layer.addTo(this._map);
+            }
             return this;
         }
         removeLayer(layer) {
+            if (!layer) return this;
             this._layers.delete(layer);
-            if (layer && typeof layer.remove === 'function') layer.remove();
+            if (typeof layer.remove === 'function') {
+                layer.remove();
+            }
             return this;
         }
         hasLayer(layer) {
@@ -572,18 +918,65 @@
         }
         clearLayers() {
             this._layers.forEach(layer => {
-                if (layer && typeof layer.remove === 'function') layer.remove();
+                if (layer && typeof layer.remove === 'function') {
+                    layer.remove();
+                }
             });
             this._layers.clear();
             return this;
         }
+        on(event, handler) {
+            if (!this._handlers[event]) this._handlers[event] = [];
+            this._handlers[event].push(handler);
+            return this;
+        }
+        off(event, handler) {
+            if (!this._handlers[event]) return this;
+            this._handlers[event] = this._handlers[event].filter(h => h !== handler);
+            return this;
+        }
+        bindTooltip(content, options = {}) {
+            this._layers.forEach(l => { if (l && typeof l.bindTooltip === 'function') l.bindTooltip(content, options); });
+            return this;
+        }
+        unbindTooltip() {
+            this._layers.forEach(l => { if (l && typeof l.unbindTooltip === 'function') l.unbindTooltip(); });
+            return this;
+        }
+        bindPopup(content, options = {}) {
+            this._layers.forEach(l => { if (l && typeof l.bindPopup === 'function') l.bindPopup(content, options); });
+            return this;
+        }
+        unbindPopup() {
+            this._layers.forEach(l => { if (l && typeof l.unbindPopup === 'function') l.unbindPopup(); });
+            return this;
+        }
         addTo(targetMap) {
+            if (isLayerGroup(targetMap)) {
+                targetMap.addLayer(this);
+                return this;
+            }
             this._map = targetMap;
-            this._layers.forEach(layer => layer.addTo(targetMap));
+            if (targetMap && targetMap._layers) {
+                targetMap._layers.add(this);
+            }
+            this._layers.forEach(layer => {
+                layer.addTo(targetMap);
+            });
             return this;
         }
         remove() {
-            this.clearLayers();
+            if (this._map && this._map._layers) {
+                this._map._layers.delete(this);
+            }
+            if (this._parentGroup) {
+                this._parentGroup._layers.delete(this);
+            }
+            this._layers.forEach(layer => {
+                if (layer && typeof layer.remove === 'function') {
+                    layer.remove();
+                }
+            });
             this._map = null;
             return this;
         }
@@ -592,11 +985,36 @@
     class PopupAdapter {
         constructor(options = {}) {
             this.options = options;
+            this._handlers = {};
             this._popup = new maplibregl.Popup({
                 className: options.className || 'custom-popup',
+                offset: options.offset || [0, 0],
                 closeButton: options.closeButton !== undefined ? options.closeButton : true,
                 closeOnClick: options.closeOnClick !== undefined ? options.closeOnClick : true
             });
+            this._map = null;
+
+            this._popup.on('close', () => {
+                if (this._map && this._map._activePopup === this) {
+                    this._map._activePopup = null;
+                }
+                if (this._handlers['remove']) {
+                    this._handlers['remove'].forEach(fn => fn({ target: this }));
+                }
+                if (this._handlers['close']) {
+                    this._handlers['close'].forEach(fn => fn({ target: this }));
+                }
+            });
+        }
+        on(event, handler) {
+            if (!this._handlers[event]) this._handlers[event] = [];
+            this._handlers[event].push(handler);
+            return this;
+        }
+        off(event, handler) {
+            if (!this._handlers[event]) return this;
+            this._handlers[event] = this._handlers[event].filter(h => h !== handler);
+            return this;
         }
         setLatLng(latlng) {
             const p = new LatLng(latlng);
@@ -608,12 +1026,21 @@
             return this;
         }
         openOn(targetMap) {
+            this._map = targetMap;
+            if (targetMap && targetMap._layers) targetMap._layers.add(this);
+            if (targetMap) targetMap._activePopup = this;
             const ml = targetMap.maplibre || targetMap;
             this._popup.addTo(ml);
             return this;
         }
         remove() {
+            if (this._map && this._map._layers) this._map._layers.delete(this);
+            if (this._map && this._map._activePopup === this) this._map._activePopup = null;
             this._popup.remove();
+            if (this._handlers['remove']) {
+                this._handlers['remove'].forEach(fn => fn({ target: this }));
+            }
+            this._map = null;
             return this;
         }
     }
@@ -625,6 +1052,7 @@
             this._isReady = false;
             this._layers = new Set();
             this._panes = {};
+            this._activePopup = null;
 
             this.maplibre = new maplibregl.Map({
                 container: containerId,
@@ -659,7 +1087,7 @@
                 }
 
                 // Place 3D buildings AFTER all road/highway/railway layers, but BEFORE place labels.
-                // This ensures that roads, highways and motorways are drawn on the ground UNDER the buildings,
+                // This ensures roads and highways are drawn on the ground UNDER the buildings,
                 // making building walls 100% solid and occluding everything behind them!
                 const layers = this.maplibre.getStyle().layers;
                 let targetBeforeId = null;
@@ -707,7 +1135,7 @@
                             ],
                             'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
                             // 100% solid and completely opaque at normal/distance view;
-                            // smoothly transitions to semi-transparent only when zooming in very close (zoom >= 17)
+                            // smoothly transitions to semi-transparent only when zooming in very close (zoom >= 17.5)
                             'fill-extrusion-opacity': [
                                 'interpolate',
                                 ['linear'],
@@ -795,25 +1223,39 @@
             const c = new LatLng(center);
             this.maplibre.jumpTo({
                 center: [c.lng, c.lat],
-                zoom: zoom
+                zoom: zoom !== undefined ? zoom : this.maplibre.getZoom()
             });
             return this;
         }
 
-        panTo(latlng) {
+        panTo(latlng, options = {}) {
             const c = new LatLng(latlng);
-            this.maplibre.panTo([c.lng, c.lat]);
+            const panOpts = Object.assign({ duration: 300 }, options);
+            if (options && options.animate === false) panOpts.duration = 0;
+            this.maplibre.panTo([c.lng, c.lat], panOpts);
             return this;
         }
 
-        flyTo(options) {
-            if (Array.isArray(options) || options.lat) {
-                const c = new LatLng(options);
-                this.maplibre.flyTo({ center: [c.lng, c.lat], duration: 1000 });
-            } else if (options && options.center) {
-                const c = new LatLng(options.center);
-                this.maplibre.flyTo(Object.assign({}, options, { center: [c.lng, c.lat] }));
+        flyTo(target, zoom, options = {}) {
+            if (typeof zoom === 'object' && zoom !== null && (options === undefined || Object.keys(options).length === 0)) {
+                options = zoom;
+                zoom = undefined;
             }
+            let center = null;
+            if (Array.isArray(target) || (target && target.lat !== undefined)) {
+                center = new LatLng(target);
+            } else if (target && target.center) {
+                center = new LatLng(target.center);
+                if (target.zoom !== undefined && zoom === undefined) zoom = target.zoom;
+                options = Object.assign({}, target, options);
+            }
+            const flyOpts = Object.assign({}, options);
+            if (center) flyOpts.center = [center.lng, center.lat];
+            if (zoom !== undefined) flyOpts.zoom = zoom;
+            if (flyOpts.duration && flyOpts.duration < 100) {
+                flyOpts.duration = flyOpts.duration * 1000;
+            }
+            this.maplibre.flyTo(flyOpts);
             return this;
         }
 
@@ -864,9 +1306,17 @@
 
         setMaxBounds(b) {
             if (b) {
-                const sw = b.getSouthWest ? b.getSouthWest() : b[0];
-                const ne = b.getNorthEast ? b.getNorthEast() : b[1];
-                this.maplibre.setMaxBounds([[sw.lng, sw.lat], [ne.lng, ne.lat]]);
+                let sw, ne;
+                if (Array.isArray(b)) {
+                    sw = new LatLng(b[0]);
+                    ne = new LatLng(b[1]);
+                } else if (b.getSouthWest && b.getNorthEast) {
+                    sw = b.getSouthWest();
+                    ne = b.getNorthEast();
+                }
+                if (sw && ne) {
+                    this.maplibre.setMaxBounds([[sw.lng, sw.lat], [ne.lng, ne.lat]]);
+                }
             }
             return this;
         }
@@ -881,23 +1331,30 @@
         }
 
         addLayer(layer) {
+            if (!layer) return this;
             this._layers.add(layer);
-            if (layer && typeof layer.addTo === 'function') {
+            if (typeof layer.addTo === 'function') {
                 layer.addTo(this);
             }
             return this;
         }
 
         removeLayer(layer) {
+            if (!layer) return this;
             this._layers.delete(layer);
-            if (layer && typeof layer.remove === 'function') {
+            if (typeof layer.remove === 'function') {
                 layer.remove();
             }
             return this;
         }
 
         closePopup(popup) {
-            if (popup && typeof popup.remove === 'function') popup.remove();
+            if (popup && typeof popup.remove === 'function') {
+                popup.remove();
+            } else if (this._activePopup) {
+                this._activePopup.remove();
+                this._activePopup = null;
+            }
             return this;
         }
 
@@ -966,8 +1423,9 @@
         },
         DomEvent: {
             stopPropagation: function(e) {
-                if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
-                if (e && e.originalEvent && typeof e.originalEvent.stopPropagation === 'function') {
+                if (!e) return;
+                if (typeof e.stopPropagation === 'function') e.stopPropagation();
+                if (e.originalEvent && typeof e.originalEvent.stopPropagation === 'function') {
                     e.originalEvent.stopPropagation();
                 }
             },

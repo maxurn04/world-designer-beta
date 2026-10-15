@@ -923,6 +923,7 @@ function toggleBuildModeFromHUD() {
     } else {
         cancelBuild();
         currentMode = 'build';
+        if (window.map && typeof window.map.setCameraMode2D === 'function') window.map.setCameraMode2D();
         if (btn) {
             btn.classList.add('active');
             btn.innerText = tr('thudBuildActive');
@@ -941,6 +942,7 @@ function toggleBuildMode(type) {
         cancelBuild();
         currentMode = 'build';
         if (type) activeTransportType = type;
+        if (window.map && typeof window.map.setCameraMode2D === 'function') window.map.setCameraMode2D();
         if (btn) {
             btn.classList.add('active');
             btn.innerText = tr('thudBuildActive');

@@ -642,6 +642,7 @@ const BASE_BUS_SPEED = 60.5;
             let m = document.getElementById('line-selector-modal'); if (m) m.style.display = 'none';
             let allLines = [...(transportLines.metro || []), ...(transportLines.bus || [])]; selectedLineForConnect = allLines.find(l => l.id === lineId);
             currentMode = 'connecting';
+            if (window.map && typeof window.map.setCameraMode2D === 'function') window.map.setCameraMode2D();
             showStatusToast(tr('toastConnecting', {name: selectedLineForConnect.name}), true, selectedLineForConnect.color);
         }
 
@@ -855,6 +856,7 @@ const BASE_BUS_SPEED = 60.5;
 
         function cancelBuild() {
             currentMode = 'idle';
+            if (window.map && typeof window.map.setCameraMode3D === 'function') window.map.setCameraMode3D();
             connectSourceStation = null;
             selectedLineForConnect = null;
             dismissStatusToast();

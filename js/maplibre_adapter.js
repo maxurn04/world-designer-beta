@@ -86,6 +86,20 @@
         return [x, y];
     }
 
+    function getLayerBeforeLabels(ml) {
+        if (!ml || !ml.getStyle) return undefined;
+        const style = ml.getStyle();
+        if (!style || !style.layers) return undefined;
+        const layers = style.layers;
+        for (let i = 0; i < layers.length; i++) {
+            const id = layers[i].id;
+            if (id && (id.startsWith('place_') || id.startsWith('poi_') || id.startsWith('road_label'))) {
+                return id;
+            }
+        }
+        return undefined;
+    }
+
     /* ==============================================================
        WEBGL TRAFFIC CAR OCCLUSION & RENDERING ENGINE
        Renders 350+ traffic cars directly inside WebGL with depth testing
@@ -740,6 +754,9 @@
                     paint['line-dasharray'] = [2, 2];
                 }
                 const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
+                const beforeId = (this.options.pane === 'overlayPane' && this.options.dashArray)
+                    ? getLayerBeforeLabels(ml)
+                    : beforeBuildingsId;
                 ml.addLayer({
                     id: this.layerId,
                     type: 'line',
@@ -749,7 +766,7 @@
                         'line-cap': 'round'
                     },
                     paint: paint
-                }, beforeBuildingsId);
+                }, beforeId);
                 if (this._handlers['click'] && this._handlers['click'].length > 0) {
                     this._registerLayerClick(ml);
                 }
@@ -921,49 +938,25 @@
                 });
 
                 // Active Commune Mask (Fog of War):
-                // 1. Renders dark flat 2D ground fill UNDER 3D buildings and traffic cars (NO 3D extrusion wall).
-                // 2. Filters 3D buildings layer so ONLY buildings inside unlocked communes are rendered in 3D.
-                // Buildings in locked communes are excluded from the 3D layer and covered by the 2D fog of war.
-                const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
+                // 1. In unlocked communes (the holes in the world mask), 3D buildings and streets rise in full glory.
+                // 2. In locked communes, the mask is a flat 2D fill (#050508) rendered AFTER 3d-buildings.
+                // It cleanly submerges and darkens locked buildings into #050508 (no vertical 120m cliff wall!).
+                let beforeId;
+                if (this.options.pane === 'maskPane') {
+                    beforeId = getLayerBeforeLabels(ml);
+                } else {
+                    beforeId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
+                }
+
                 ml.addLayer({
                     id: this.layerId,
                     type: 'fill',
                     source: this.sourceId,
                     paint: {
                         'fill-color': resolveColor(this.options.fillColor, '#050508'),
-                        'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : (this.options.pane === 'maskPane' ? 0.95 : 0.88)
+                        'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : (this.options.pane === 'maskPane' ? 0.98 : 0.88)
                     }
-                }, beforeBuildingsId);
-
-                if (this.options.pane === 'maskPane' && this.latlngs && this.latlngs.length > 1) {
-                    // Extract active commune rings (the holes in the world mask)
-                    const activeGeoJSON = {
-                        type: 'MultiPolygon',
-                        coordinates: this.latlngs.slice(1).map(ring => {
-                            let r = ring.map(pt => {
-                                let lat = pt.lat !== undefined ? pt.lat : pt[0];
-                                let lng = pt.lng !== undefined ? pt.lng : pt[1];
-                                return [lng, lat];
-                            });
-                            if (r.length > 0) {
-                                let first = r[0], last = r[r.length - 1];
-                                if (first[0] !== last[0] || first[1] !== last[1]) {
-                                    r.push([first[0], first[1]]);
-                                }
-                            }
-                            return [r];
-                        })
-                    };
-
-                    targetMap._activeCommunesGeoJSON = activeGeoJSON;
-                    if (ml.getLayer('3d-buildings')) {
-                        try {
-                            ml.setFilter('3d-buildings', ['==', ['within', activeGeoJSON], true]);
-                        } catch(err) {
-                            console.warn('MapLibre 3D building within filter notice:', err);
-                        }
-                    }
-                }
+                }, beforeId);
 
                 if (this._handlers['click'] && this._handlers['click'].length > 0) {
                     this._registerLayerClick(ml);
@@ -1141,6 +1134,7 @@
             this._parentGroup = null;
             this._added = false;
             this._isRemoved = false;
+            this._canvas = null;
             this._handlers = {};
         }
         setUrl(url) {
@@ -1148,7 +1142,21 @@
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
                 const src = ml.getSource(this.sourceId);
-                if (src && src.updateImage) {
+                if (src && src.getCanvas) {
+                    const canvas = src.getCanvas();
+                    const img = new Image();
+                    img.onload = () => {
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        if (src.play && src.pause) {
+                            src.play();
+                            src.pause();
+                        }
+                        if (ml.triggerRepaint) ml.triggerRepaint();
+                    };
+                    img.src = this.url;
+                } else if (src && src.updateImage) {
                     src.updateImage({ url: this.url });
                 }
             }
@@ -1204,37 +1212,82 @@
             targetMap._runWhenReady(() => {
                 if (this._isRemoved) return;
                 if (ml.getSource(this.sourceId)) return;
+
                 const sw = this.bounds.getSouthWest();
                 const ne = this.bounds.getNorthEast();
+                const coords = [
+                    [sw.lng, ne.lat],
+                    [ne.lng, ne.lat],
+                    [ne.lng, sw.lat],
+                    [sw.lng, sw.lat]
+                ];
+
+                const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
+                const rasterOpacity = this.options.opacity !== undefined ? this.options.opacity : 0.38;
+
+                // Load image into an offscreen canvas for 100% universal compatibility
+                // (supports file://, blob:, data:, and http/https without CORS or fetch failure)
+                const img = new Image();
+                img.onload = () => {
+                    if (this._isRemoved || !this._map) return;
+                    if (ml.getSource(this.sourceId)) return;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth || 2560;
+                    canvas.height = img.naturalHeight || 2807;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+
+                    this._canvas = canvas;
+
+                    try {
+                        ml.addSource(this.sourceId, {
+                            type: 'canvas',
+                            canvas: canvas,
+                            coordinates: coords,
+                            animate: false
+                        });
+                        ml.addLayer({
+                            id: this.layerId,
+                            type: 'raster',
+                            source: this.sourceId,
+                            paint: {
+                                'raster-opacity': rasterOpacity
+                            }
+                        }, beforeBuildingsId);
+                        this._added = true;
+                    } catch(err) {
+                        this._fallbackImageSource(ml, coords, rasterOpacity, beforeBuildingsId);
+                    }
+                };
+                img.onerror = () => {
+                    if (this._isRemoved || !this._map) return;
+                    this._fallbackImageSource(ml, coords, rasterOpacity, beforeBuildingsId);
+                };
+                img.src = this.url;
+            });
+            return this;
+        }
+        _fallbackImageSource(ml, coords, rasterOpacity, beforeId) {
+            if (this._isRemoved || ml.getSource(this.sourceId)) return;
+            try {
                 ml.addSource(this.sourceId, {
                     type: 'image',
                     url: this.url,
-                    coordinates: [
-                        [sw.lng, ne.lat],
-                        [ne.lng, ne.lat],
-                        [ne.lng, sw.lat],
-                        [sw.lng, sw.lat]
-                    ]
+                    coordinates: coords
                 });
-                let beforeId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
-                const layers = ml.getStyle().layers;
-                for (let i = 0; i < layers.length; i++) {
-                    if (layers[i].id.startsWith('poly-lay-')) {
-                        beforeId = layers[i].id;
-                        break;
-                    }
-                }
                 ml.addLayer({
                     id: this.layerId,
                     type: 'raster',
                     source: this.sourceId,
                     paint: {
-                        'raster-opacity': this.options.opacity !== undefined ? this.options.opacity : 0.35
+                        'raster-opacity': rasterOpacity
                     }
                 }, beforeId);
                 this._added = true;
-            });
-            return this;
+            } catch(e) {
+                console.warn('Fallback image source notice:', e);
+            }
         }
         remove() {
             this._isRemoved = true;
@@ -1246,6 +1299,7 @@
                 if (ml.getSource(this.sourceId)) ml.removeSource(this.sourceId);
                 this._added = false;
             }
+            this._canvas = null;
             this._map = null;
             return this;
         }
@@ -1513,13 +1567,6 @@
                                 ]
                             }
                         }, targetBeforeId);
-                        if (this._activeCommunesGeoJSON) {
-                            try {
-                                this.maplibre.setFilter('3d-buildings', ['==', ['within', this._activeCommunesGeoJSON], true]);
-                            } catch(err) {
-                                console.warn('Building within filter initialization notice:', err);
-                            }
-                        }
                         if (this._densityMode) {
                             this.setDensityMode(true);
                         }
@@ -1534,29 +1581,34 @@
             this._densityMode = active;
             if (!this.maplibre || !this.maplibre.getLayer('3d-buildings')) return;
             if (active) {
-                // In Density mode, keep buildings in subtle architectural slate,
-                // and soften their opacity (0.60) so the 35% colored street grid on the ground
-                // is beautifully visible and legible without buildings overwhelming the map
+                // Density & Attraction Heatmap Mode:
+                // 3D buildings colored by density & transit demand tiers:
+                // - Tier 1: Red (#d50000 / #ff0055) -> Critical demand / Major transit hubs & towers (8.5 - 10.0)
+                // - Tier 2: Orange (#ff9100) -> High density urban corridors (6.0 - 8.4)
+                // - Tier 3: Yellow (#ffb300) -> Moderate density / Connecting streets (3.5 - 5.9)
+                // - Tier 4: Gray/Neutral (#a3a18e) -> Low density residential neighborhoods (1.0 - 3.4)
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
                     'interpolate',
                     ['linear'],
                     ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
-                    0, '#26293a',
-                    20, '#30354a',
-                    50, '#3d4361',
-                    100, '#4e567d',
-                    200, '#636e9e',
-                    300, '#7b89c4'
+                    0,   '#a3a18e', // Tier 4: Residential / Barrio (1.0 - 3.4)
+                    10,  '#a3a18e',
+                    14,  '#ffb300', // Tier 3: Moderate / Calle Conectora (3.5 - 5.9)
+                    24,  '#ff9100', // Tier 2: High Urban / Corredor Comercial (6.0 - 8.4)
+                    50,  '#d50000', // Tier 1: Critical Demand / Gran Avenida (8.5 - 10.0)
+                    100, '#ff1744', // High-density Tower / Transit Hub
+                    200, '#ff0055', // Landmark Skyscraper
+                    300, '#e91e63'  // Costanera Center Peak Demanda (10.0)
                 ]);
-                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', 0.60);
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', 0.82);
                 this.maplibre.setLight({
                     anchor: 'viewport',
                     color: '#ffffff',
-                    intensity: 0.55,
+                    intensity: 0.65,
                     position: [1.25, 120, 50]
                 });
             } else {
-                // Normal solid view
+                // Normal sleek architectural slate view with directional lighting
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
                     'interpolate',
                     ['linear'],

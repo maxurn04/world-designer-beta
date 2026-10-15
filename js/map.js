@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', loadSantiagoStreetsFromJS);
                     [[-85, -180], [-85, 180], [85, 180], [85, -180]],
                     ...allActiveRings
                 ];
-                let maskOpacity = (typeof isDensityFilterActive !== 'undefined' && isDensityFilterActive) ? 1.0 : 0.88;
+                let maskOpacity = (typeof isDensityFilterActive !== 'undefined' && isDensityFilterActive) ? 1.0 : 0.98;
                 L.polygon(worldMask, {
                     pane: 'maskPane',
                     color: 'transparent',

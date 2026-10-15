@@ -505,11 +505,11 @@ function renderDensityMapFilter() {
             if (santiagoStreetOverlay && densityMapLayerGroup.hasLayer(santiagoStreetOverlay)) {
                 santiagoStreetOverlay.setUrl(rasterUrl);
                 if (typeof santiagoStreetOverlay.setOpacity === 'function') {
-                    santiagoStreetOverlay.setOpacity(0.35);
+                    santiagoStreetOverlay.setOpacity(0.38);
                 }
             } else {
                 santiagoStreetOverlay = L.imageOverlay(rasterUrl, SANTIAGO_DENSITY_BOUNDS, {
-                    opacity: 0.35,
+                    opacity: 0.38,
                     interactive: false,
                     pane: 'densityStreetPane',
                     zIndex: 340,

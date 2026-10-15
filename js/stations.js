@@ -923,7 +923,7 @@ function toggleBuildModeFromHUD() {
     } else {
         cancelBuild();
         currentMode = 'build';
-        if (window.map && typeof window.map.setCameraMode2D === 'function') window.map.setCameraMode2D();
+        if (window.map && typeof window.map.setCameraMode2D === 'function') window.map.setCameraMode2D(350);
         if (btn) {
             btn.classList.add('active');
             btn.innerText = tr('thudBuildActive');
@@ -942,7 +942,7 @@ function toggleBuildMode(type) {
         cancelBuild();
         currentMode = 'build';
         if (type) activeTransportType = type;
-        if (window.map && typeof window.map.setCameraMode2D === 'function') window.map.setCameraMode2D();
+        if (window.map && typeof window.map.setCameraMode2D === 'function') window.map.setCameraMode2D(350);
         if (btn) {
             btn.classList.add('active');
             btn.innerText = tr('thudBuildActive');
@@ -957,6 +957,7 @@ function toggleBuildFromNavbar(e) {
     let panel = document.getElementById('transport-hud-panel');
     if (!panel || panel.style.display !== 'block') {
         openTransportPanel(activeTransportType || 'metro');
+        toggleBuildMode(activeTransportType || 'metro');
     } else {
         toggleBuildModeFromHUD();
     }
@@ -978,7 +979,11 @@ function toggleBuildFromNavbar(e) {
         }
 
         map.on('mousemove', (e) => {
-            if ((currentMode !== 'build' && currentMode !== 'edit_station' && currentMode !== 'connecting')) return;
+            if ((currentMode !== 'build' && currentMode !== 'edit_station' && currentMode !== 'connecting')) {
+                if (typeof ghostMarker !== 'undefined' && ghostMarker) ghostMarker.setStyle({ opacity: 0, fillOpacity: 0 });
+                if (typeof ghostLine !== 'undefined' && ghostLine) ghostLine.setStyle({ opacity: 0 });
+                return;
+            }
 
             let snappedSt = (currentMode === 'connecting') ? getSnappedStation(e.latlng) : null;
             let targetLatLng = snappedSt ? snappedSt.latlng : e.latlng;
@@ -1141,6 +1146,12 @@ function toggleBuildFromNavbar(e) {
 
                 allStations.push(newStation);
                 if (isDensityFilterActive) renderDensityMapFilter();
+                if (typeof ghostMarker !== 'undefined' && ghostMarker) {
+                    ghostMarker.setStyle({ opacity: 0, fillOpacity: 0 });
+                }
+                if (typeof ghostLine !== 'undefined' && ghostLine) {
+                    ghostLine.setStyle({ opacity: 0 });
+                }
                 cancelBuild();
                 checkLevelProgression();
                 showStatusToast(`✓ Estación construida con éxito. Haz clic en ella para conectarla a una línea.`, false, 'var(--success-pastel)');

@@ -174,8 +174,18 @@
             const r = this.options.radius || 8;
             const color = this.options.color || '#fff';
             const fill = this.options.fillColor || color;
-            const op = this.options.opacity !== undefined ? this.options.opacity : 1;
-            const fillOp = this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.5;
+            const op = this.options.opacity !== undefined ? Number(this.options.opacity) : 1;
+            const fillOp = this.options.fillOpacity !== undefined ? Number(this.options.fillOpacity) : 0.5;
+
+            // Completely hide the DOM element if opacity is 0 or fillOpacity is 0
+            if (op <= 0 || (this.options.opacity === 0 && (this.options.fillOpacity === undefined || this.options.fillOpacity === 0))) {
+                this.element.style.display = 'none';
+                this.element.style.opacity = '0';
+                this.element.style.pointerEvents = 'none';
+                return;
+            }
+
+            this.element.style.display = 'block';
             this.element.style.width = (r * 2) + 'px';
             this.element.style.height = (r * 2) + 'px';
             this.element.style.borderRadius = '50%';
@@ -184,7 +194,6 @@
             this.element.style.opacity = op;
             this.element.style.pointerEvents = this.options.interactive ? 'auto' : 'none';
             this.element.style.boxSizing = 'border-box';
-            this.element.style.transition = 'all 0.1s ease';
         }
         setLatLng(latlng) {
             this.latlng = new LatLng(latlng);
@@ -203,7 +212,9 @@
             if (!this._marker) {
                 this._marker = new maplibregl.Marker({
                     element: this.element,
-                    anchor: 'center'
+                    anchor: 'center',
+                    pitchAlignment: 'viewport',
+                    rotationAlignment: 'viewport'
                 });
             }
             this._marker.setLngLat([this.latlng.lng, this.latlng.lat]);
@@ -633,32 +644,41 @@
                 }
                 const sourceName = this.maplibre.getSource('openmaptiles') ? 'openmaptiles' : null;
                 if (sourceName && !this.maplibre.getLayer('3d-buildings')) {
+                    // Set directional sun lighting to make building walls and roofs crisp and defined
+                    this.maplibre.setLight({
+                        anchor: 'viewport',
+                        color: '#ffffff',
+                        intensity: 0.45,
+                        position: [1.2, 110, 45]
+                    });
+
                     this.maplibre.addLayer({
                         'id': '3d-buildings',
                         'source': sourceName,
                         'source-layer': 'building',
                         'type': 'fill-extrusion',
-                        'minzoom': 13.5,
+                        'minzoom': 13.0,
                         'paint': {
                             'fill-extrusion-color': [
                                 'interpolate',
                                 ['linear'],
-                                ['coalesce', ['get', 'render_height'], 10],
-                                0, '#1c1c28',
-                                20, '#28283c',
-                                50, '#3b3b58',
-                                100, '#53537a',
-                                200, '#6f6fa6'
+                                ['coalesce', ['get', 'render_height'], 12],
+                                0, '#2b2f42',
+                                15, '#373c54',
+                                35, '#4a5173',
+                                75, '#5e6791',
+                                150, '#7580b3',
+                                300, '#8f9cd6'
                             ],
                             'fill-extrusion-height': [
                                 'interpolate',
                                 ['linear'],
                                 ['zoom'],
-                                13.5, 0,
-                                14.5, ['coalesce', ['get', 'render_height'], 12]
+                                13.0, 0,
+                                14.2, ['coalesce', ['get', 'render_height'], 12]
                             ],
                             'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-                            'fill-extrusion-opacity': 0.88
+                            'fill-extrusion-opacity': 1.0
                         }
                     }, labelLayerId);
                 }
@@ -675,7 +695,7 @@
             }
         }
 
-        setCameraMode2D(duration = 800) {
+        setCameraMode2D(duration = 350) {
             this.is2D = true;
             this.maplibre.easeTo({
                 pitch: 0,
@@ -685,7 +705,7 @@
             this._updateCameraUI();
         }
 
-        setCameraMode3D(duration = 800) {
+        setCameraMode3D(duration = 400) {
             this.is2D = false;
             this.maplibre.easeTo({
                 pitch: 55,
@@ -697,9 +717,9 @@
 
         toggleCameraMode() {
             if (this.is2D) {
-                this.setCameraMode3D();
+                this.setCameraMode3D(400);
             } else {
-                this.setCameraMode2D();
+                this.setCameraMode2D(350);
             }
         }
 

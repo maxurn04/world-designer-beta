@@ -1968,10 +1968,10 @@
                     <span id="txt-btn-build">Build ▾</span>
                 </button>
                 <div class="build-cascade-menu" id="build-cascade-menu">
-                    <button class="cascade-item" onclick="openTransportPanel('metro')">
+                    <button class="cascade-item" onclick="openTransportPanel('metro'); toggleBuildMode('metro');">
                         <span class="svg-slot">🚇</span> <span id="txt-item-subway">Subway</span>
                     </button>
-                    <button class="cascade-item" onclick="openTransportPanel('bus')">
+                    <button class="cascade-item" onclick="openTransportPanel('bus'); toggleBuildMode('bus');">
                         <span class="svg-slot">🚌</span> <span id="txt-item-bus">Bus</span>
                     </button>
                     <button class="cascade-item" disabled title="Coming soon">

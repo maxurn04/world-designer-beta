@@ -856,7 +856,7 @@ const BASE_BUS_SPEED = 60.5;
 
         function cancelBuild() {
             currentMode = 'idle';
-            if (window.map && typeof window.map.setCameraMode3D === 'function') window.map.setCameraMode3D();
+            if (window.map && typeof window.map.setCameraMode3D === 'function') window.map.setCameraMode3D(400);
             connectSourceStation = null;
             selectedLineForConnect = null;
             dismissStatusToast();
@@ -866,8 +866,12 @@ const BASE_BUS_SPEED = 60.5;
                 thudBuildBtn.classList.remove('active');
                 thudBuildBtn.innerText = activeTransportType === 'metro' ? tr('thudBuildSubway') : tr('thudBuildBus');
             }
-            ghostMarker.setStyle({ opacity: 0 }); 
-            ghostLine.setStyle({ opacity: 0 });
+            if (typeof ghostMarker !== 'undefined' && ghostMarker) {
+                ghostMarker.setStyle({ opacity: 0, fillOpacity: 0 });
+            }
+            if (typeof ghostLine !== 'undefined' && ghostLine) {
+                ghostLine.setStyle({ opacity: 0 });
+            }
         }
 
 

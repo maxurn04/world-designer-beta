@@ -1,4 +1,4 @@
-﻿/* ==============================================================
+/* ==============================================================
    ECONOMY, TARIFFS, TECH TREE & FINANCES
    ============================================================== */
 
@@ -8,9 +8,14 @@ let evasionRate = 0.15;
 let fareSubPeak = 830;
 let fareSubOff = 750;
 let fareBusFlat = 730;
+let toastTimeout = null;
 
-
-        
+let tariffConfig = {
+    metroPeak: 840,
+    metroOff: 750,
+    busFlat: 730,
+    bipIntegrated: true
+};
 
         function resetDailyEventModifiers() {
             evasionRate = 0.06;
@@ -31,38 +36,38 @@ let fareBusFlat = 730;
                 currentEventSpeedFactor = 0.65;
                 currentEventDemandBoost = 1.4;
                 showStatusToast(currentLang === 'es' 
-                    ? 'ðŸŒ§ï¸ Â¡Lluvia Invernal! TrÃ¡fico en calles -35%, demanda del Metro +40%.' 
-                    : 'ðŸŒ§ï¸ Winter Rainstorm! Street traffic -35%, subway demand +40%.', false, 'var(--danger-pastel)');
+                    ? '🌧️ ¡Lluvia Invernal! Tráfico en calles -35%, demanda del Metro +40%.' 
+                    : '🌧️ Winter Rainstorm! Street traffic -35%, subway demand +40%.', false, 'var(--danger-pastel)');
             } else if (evt.id === 'subsidy') {
                 money += 15000000;
                 citizenHappiness = Math.min(100, citizenHappiness + 5);
                 document.getElementById('ui-money').innerText = formatFixedCurrency(money);
                 showStatusToast(currentLang === 'es'
-                    ? 'âš¡ Â¡Subsidio Estatal! +$15.000.000 a fondos pÃºblicos y aprobaciÃ³n +5%.'
-                    : 'âš¡ State Transit Subsidy! +$15,000,000 public funds & approval +5%.', false, 'var(--success-pastel)');
+                    ? '⚡ ¡Subsidio Estatal! +$15.000.000 a fondos públicos y aprobación +5%.'
+                    : '⚡ State Transit Subsidy! +$15,000,000 public funds & approval +5%.', false, 'var(--success-pastel)');
             } else if (evt.id === 'concert') {
                 currentEventDemandBoost = 2.5;
                 citizenHappiness = Math.min(100, citizenHappiness + 4);
                 showStatusToast(currentLang === 'es'
-                    ? 'ðŸŽµ Â¡Mega Concierto Parque O\'Higgins! Demanda de pasajeros +150% (2.5x).'
-                    : 'ðŸŽµ Massive Concert! Passenger arrival surge +150% (2.5x).', false, 'var(--success-pastel)');
+                    ? '🎵 ¡Mega Concierto Parque O\'Higgins! Demanda de pasajeros +150% (2.5x).'
+                    : '🎵 Massive Concert! Passenger arrival surge +150% (2.5x).', false, 'var(--success-pastel)');
             } else if (evt.id === 'roadworks') {
                 currentEventSpeedFactor = 0.60;
                 currentEventBusExpMultiplier = 1.25;
                 showStatusToast(currentLang === 'es'
-                    ? 'ðŸš§ Â¡Obras Viales! TrÃ¡fico ralentizado 40% y gastos de buses +25%.'
-                    : 'ðŸš§ Roadworks! Traffic slowed 40% & bus operating expenses +25%.', false, 'var(--danger-pastel)');
+                    ? '🚧 ¡Obras Viales! Tráfico ralentizado 40% y gastos de buses +25%.'
+                    : '🚧 Roadworks! Traffic slowed 40% & bus operating expenses +25%.', false, 'var(--danger-pastel)');
             } else if (evt.id === 'match') {
                 currentEventDemandBoost = 3.0;
                 showStatusToast(currentLang === 'es'
-                    ? 'âš½ Â¡SuperclÃ¡sico de FÃºtbol! Afluencia de pasajeros triplicada (3.0x).'
-                    : 'âš½ Soccer Derby! Stadium rush triples passenger influx (3.0x).', false, 'var(--success-pastel)');
+                    ? '⚽ ¡Superclásico de Fútbol! Afluencia de pasajeros triplicada (3.0x).'
+                    : '⚽ Soccer Derby! Stadium rush triples passenger influx (3.0x).', false, 'var(--success-pastel)');
             } else if (evt.id === 'strike') {
                 currentEventDemandBoost = 1.8;
                 citizenHappiness = Math.min(100, citizenHappiness + 4);
                 showStatusToast(currentLang === 'es'
-                    ? 'ðŸ“¢ Â¡Paro de Transporte Privado! Demanda de transporte pÃºblico +80%.'
-                    : 'ðŸ“¢ Private Transit Strike! Public transit demand +80% all day.', false, 'var(--success-pastel)');
+                    ? '📢 ¡Paro de Transporte Privado! Demanda de transporte público +80%.'
+                    : '📢 Private Transit Strike! Public transit demand +80% all day.', false, 'var(--success-pastel)');
             } else if (evt.id === 'storm') {
                 currentWeather = 'rain';
                 currentEventSpeedFactor = 0.50;
@@ -70,38 +75,38 @@ let fareBusFlat = 730;
                 money = Math.max(0, money - 6000000);
                 document.getElementById('ui-money').innerText = formatFixedCurrency(money);
                 showStatusToast(currentLang === 'es'
-                    ? 'â›ˆï¸ Â¡Alerta de Temporal! Reparaciones -$6.000.000 y velocidad reducida a la mitad.'
-                    : 'â›ˆï¸ Storm & Flood Alert! Emergency repairs -$6,000,000, speed halved.', false, 'var(--danger-pastel)');
+                    ? '⛈️ ¡Alerta de Temporal! Reparaciones -$6.000.000 y velocidad reducida a la mitad.'
+                    : '⛈️ Storm & Flood Alert! Emergency repairs -$6,000,000, speed halved.', false, 'var(--danger-pastel)');
             } else if (evt.id === 'car_free') {
                 currentEventDemandBoost = 2.2;
                 citizenHappiness = Math.min(100, citizenHappiness + 8);
                 showStatusToast(currentLang === 'es'
-                    ? 'ðŸŒ³ Â¡DÃ­a Sin Auto en Santiago! AprobaciÃ³n +8% y viajes en Metro y Bus duplicados.'
-                    : 'ðŸŒ³ Santiago Car-Free Day! Approval +8% and public ridership doubled (2.2x).', false, 'var(--success-pastel)');
+                    ? '🌳 ¡Día Sin Auto en Santiago! Aprobación +8% y viajes en Metro y Bus duplicados.'
+                    : '🌳 Santiago Car-Free Day! Approval +8% and public ridership doubled (2.2x).', false, 'var(--success-pastel)');
             } else if (evt.id === 'festival') {
                 currentEventOffPeakBoost = 1.8;
                 citizenHappiness = Math.min(100, citizenHappiness + 5);
                 showStatusToast(currentLang === 'es'
-                    ? 'ðŸŽª Â¡Feria Costumbrista! Afluencia en horario valle +80% y bienestar +5%.'
-                    : 'ðŸŽª Cultural Food Fair! Off-peak ridership +80% and approval +5%.', false, 'var(--success-pastel)');
+                    ? '🎪 ¡Feria Costumbrista! Afluencia en horario valle +80% y bienestar +5%.'
+                    : '🎪 Cultural Food Fair! Off-peak ridership +80% and approval +5%.', false, 'var(--success-pastel)');
             } else if (evt.id === 'heatwave') {
                 currentEventFleetExpMultiplier = 1.35;
                 citizenHappiness = Math.max(10, citizenHappiness - 5);
                 showStatusToast(currentLang === 'es'
-                    ? 'ðŸ”¥ Â¡Ola de Calor Extremo (38Â°C)! Consumo de aire acondicionado +35%, confort -5%.'
-                    : 'ðŸ”¥ Extreme Heatwave! AC cooling power expenses +35%, comfort -5%.', false, 'var(--danger-pastel)');
+                    ? '🔥 ¡Ola de Calor Extremo (38°C)! Consumo de aire acondicionado +35%, confort -5%.'
+                    : '🔥 Extreme Heatwave! AC cooling power expenses +35%, comfort -5%.', false, 'var(--danger-pastel)');
             } else if (evt.id === 'evasion_crisis') {
                 evasionRate = 0.22;
                 showStatusToast(currentLang === 'es'
-                    ? 'ðŸ“‰ Â¡Jornada de Alta EvasiÃ³n! Tasa de evasiÃ³n se dispara al 22% hoy.'
-                    : 'ðŸ“‰ High Fare Evasion Day! Evasion spikes to 22% cutting ticket income.', false, 'var(--danger-pastel)');
+                    ? '📉 ¡Jornada de Alta Evasión! Tasa de evasión se dispara al 22% hoy.'
+                    : '📉 High Fare Evasion Day! Evasion spikes to 22% cutting ticket income.', false, 'var(--danger-pastel)');
             } else if (evt.id === 'award') {
                 money += 20000000;
                 citizenHappiness = 100;
                 document.getElementById('ui-money').innerText = formatFixedCurrency(money);
                 showStatusToast(currentLang === 'es'
-                    ? 'ðŸ† Â¡Premio a la Excelencia del Transporte! SubvenciÃ³n +$20.000.000 y 100% aprobaciÃ³n.'
-                    : 'ðŸ† Transit Excellence Award! +$20,000,000 grant and 100% approval.', false, 'var(--success-pastel)');
+                    ? '🏆 ¡Premio a la Excelencia del Transporte! Subvención +$20.000.000 y 100% aprobación.'
+                    : '🏆 Transit Excellence Award! +$20,000,000 grant and 100% approval.', false, 'var(--success-pastel)');
             }
 
             let modal = document.getElementById('calendar-modal');
@@ -110,14 +115,6 @@ let fareBusFlat = 730;
                 selectCalendarDay(day);
             }
         }
-
-        let tariffConfig = {
-            metroPeak: 840,
-            metroOff: 750,
-            busFlat: 730,
-            bipIntegrated: true
-        };
-        evasionRate = 0.06;
 
         function formatFixedCurrency(amount) {
             let sign = amount < 0 ? "-" : "";
@@ -135,7 +132,7 @@ let fareBusFlat = 730;
 
             document.getElementById('ui-clock-time').innerText = `${displayHour}:${displayMinute} ${period}`;
             let dayName = currentLang === 'es' ? DAYS_OF_WEEK_ES[simDayIndex] : DAYS_OF_WEEK_EN[simDayIndex];
-            document.getElementById('ui-clock-day').innerText = `${dayName} ${simDayOfMonth} ðŸ“…`;
+            document.getElementById('ui-clock-day').innerText = `${dayName} ${simDayOfMonth} 📅`;
             updateDayNightAtmosphere();
             updateLiveDynamicWeather();
 
@@ -172,13 +169,16 @@ let fareBusFlat = 730;
             let bar = document.getElementById('status-toast-bar');
             let text = document.getElementById('status-toast-text');
             let btn = document.getElementById('status-toast-action');
+            if (!bar || !text) return;
 
             if (toastTimeout) clearTimeout(toastTimeout);
 
             bar.style.borderColor = borderColor;
             text.innerHTML = message;
-            btn.style.display = isPersistent ? 'block' : 'none';
-            btn.innerText = tr('btnCancel');
+            if (btn) {
+                btn.style.display = isPersistent ? 'block' : 'none';
+                btn.innerText = tr('btnCancel');
+            }
             bar.style.display = 'flex';
 
             if (!isPersistent) {
@@ -190,22 +190,27 @@ let fareBusFlat = 730;
 
         function dismissStatusToast() {
             let bar = document.getElementById('status-toast-bar');
-            bar.style.display = 'none';
-            if (currentMode === 'connecting') cancelBuild();
+            if (bar) bar.style.display = 'none';
+            if (typeof currentMode !== 'undefined' && currentMode === 'connecting' && typeof cancelBuild === 'function') cancelBuild();
         }
 
 
         function toggleTariffModal() {
             let modal = document.getElementById('tariff-modal');
+            if (!modal) return;
             modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
             if (modal.style.display === 'block') updateTariffUI();
         }
 
         function updateTariffValues() {
-            tariffConfig.metroPeak = parseInt(document.getElementById('inp-metro-peak').value) || 840;
-            tariffConfig.metroOff = parseInt(document.getElementById('inp-metro-off').value) || 750;
-            tariffConfig.busFlat = parseInt(document.getElementById('inp-bus-flat').value) || 730;
-            tariffConfig.bipIntegrated = document.getElementById('chk-bip').checked;
+            let elPeak = document.getElementById('inp-metro-peak');
+            let elOff = document.getElementById('inp-metro-off');
+            let elBus = document.getElementById('inp-bus-flat');
+            let elBip = document.getElementById('chk-bip');
+            if (elPeak) tariffConfig.metroPeak = parseInt(elPeak.value) || 840;
+            if (elOff) tariffConfig.metroOff = parseInt(elOff.value) || 750;
+            if (elBus) tariffConfig.busFlat = parseInt(elBus.value) || 730;
+            if (elBip) tariffConfig.bipIntegrated = elBip.checked;
             updateTariffUI();
         }
 
@@ -214,21 +219,22 @@ let fareBusFlat = 730;
             let calculatedEvasion = Math.max(0.02, Math.min(0.25, ((avgPrice - 600) / 1200) * (tariffConfig.bipIntegrated ? 0.75 : 1.2)));
             evasionRate = calculatedEvasion;
 
-            document.getElementById('ui-evasion-rate').innerText = `${Math.round(evasionRate * 100)}%`;
+            let evEl = document.getElementById('ui-evasion-rate');
+            if (evEl) evEl.innerText = `${Math.round(evasionRate * 100)}%`;
             let impactEl = document.getElementById('ui-tariff-impact');
-
-            if (avgPrice > 880) {
-                impactEl.innerText = tr('fareImpactHigh');
-                impactEl.style.color = "var(--danger-pastel)";
-            } else if (avgPrice < 700) {
-                impactEl.innerText = tr('fareImpactLow');
-                impactEl.style.color = "var(--success-pastel)";
-            } else {
-                impactEl.innerText = tr('fareImpactBalanced');
-                impactEl.style.color = "var(--accent)";
+            if (impactEl) {
+                if (avgPrice > 880) {
+                    impactEl.innerText = tr('fareImpactHigh');
+                    impactEl.style.color = "var(--danger-pastel)";
+                } else if (avgPrice < 700) {
+                    impactEl.innerText = tr('fareImpactLow');
+                    impactEl.style.color = "var(--success-pastel)";
+                } else {
+                    impactEl.innerText = tr('fareImpactBalanced');
+                    impactEl.style.color = "var(--accent)";
+                }
             }
         }
-
 
 function updateMoneyDisplay() {
     let el = document.getElementById('ui-money');
@@ -237,11 +243,14 @@ function updateMoneyDisplay() {
 
         function toggleFinancialModal() {
             let el = document.getElementById('financial-modal');
+            if (!el) return;
             el.style.display = el.style.display === 'block' ? 'none' : 'block';
         }
 
         function updateFinancialModalContent(tInc, tExp) {
-            document.getElementById('fin-content').innerHTML = `
+            let el = document.getElementById('fin-content');
+            if (!el) return;
+            el.innerHTML = `
                 <div style="margin-bottom:6px; color:var(--success-pastel);"><b>${tr('finPeriodIncome', {amt: tInc.toLocaleString()})}</b></div>
                 <div style="margin-left:10px; font-size:0.8rem; color:#ccc;">
                     ${tr('finSubwayRev', {amt: Math.floor(statsRecord.metroRev).toLocaleString()})}<br>
@@ -253,11 +262,10 @@ function updateMoneyDisplay() {
                 <div style="margin-bottom:6px; color:var(--danger-pastel);"><b>${tr('finMaintCost', {amt: tExp.toLocaleString()})}</b></div>
                 <div style="margin-left:10px; font-size:0.8rem; color:#ccc;">
                     ${tr('finSubwayExp', {amt: statsRecord.metroExp.toLocaleString()})}<br>
-                    ${tr('finBusExp', {amt: statsRecord.busExp.toLocaleString()})}${statsRecord.intermodalExp ? `<br>🏢 ${currentLang === 'es' ? 'Nodos Intermodales (Operación)' : 'Intermodal Hubs (Operations)'}: -$${statsRecord.intermodalExp.toLocaleString()}` : ''}
+                    ${tr('finBusExp', {amt: statsRecord.busExp.toLocaleString()})}${statsRecord.intermodalExp ? `<br>🏢🔄 ${currentLang === 'es' ? 'Nodos Intermodales (Operación)' : 'Intermodal Hubs (Operations)'}: -$${statsRecord.intermodalExp.toLocaleString()}` : ''}
                 </div>
             `;
         }
-
 
 function toggleTechModal() {
     playAudioClick();
@@ -299,11 +307,11 @@ function renderTechModalContent() {
                         <div class="tech-icon">${t.icon}</div>
                         <div>
                             <div class="tech-title">${name}</div>
-                            <div style="font-size:0.75rem; color:#8b949e; margin-top:2px;">${isUnlocked ? 'âœ“ ' + tr('techUnlockedBadge') : formatFixedCurrency(t.cost)}</div>
+                            <div style="font-size:0.75rem; color:#8b949e; margin-top:2px;">${isUnlocked ? '✓ ' + tr('techUnlockedBadge') : formatFixedCurrency(t.cost)}</div>
                         </div>
                     </div>
                     <div class="tech-desc">${desc}</div>
-                    <div class="tech-perk-badge">â˜… ${perk}</div>
+                    <div class="tech-perk-badge">★ ${perk}</div>
                 </div>
                 <div>${btnHtml}</div>
             </div>
@@ -318,7 +326,7 @@ function purchaseTechUpgrade(techId) {
     if (!tech || techUpgrades[techId]) return;
 
     if (money < tech.cost) {
-        showStatusToast(currentLang === 'es' ? 'âš ï¸ Fondos pÃºblicos insuficientes' : 'âš ï¸ Insufficient public funds', false, 'var(--danger-pastel)');
+        showStatusToast(currentLang === 'es' ? '⚠️ Fondos públicos insuficientes' : '⚠️ Insufficient public funds', false, 'var(--danger-pastel)');
         return;
     }
 
@@ -331,24 +339,23 @@ function purchaseTechUpgrade(techId) {
     renderTechModalContent();
 
     let techName = currentLang === 'es' ? tech.nameEs : tech.nameEn;
-    showStatusToast(`âš¡ ${currentLang === 'es' ? 'TecnologÃ­a desbloqueada' : 'Tech unlocked'}: ${techName}!`, false, 'var(--success-pastel)');
+    showStatusToast(`⚡ ${currentLang === 'es' ? 'Tecnología desbloqueada' : 'Tech unlocked'}: ${techName}!`, false, 'var(--success-pastel)');
 }
 
 function applyTechUpgradeEffect(techId) {
     if (techId === 'tech_electric_fleet') {
         citizenHappiness = Math.min(100, citizenHappiness + 6);
         let hapEl = document.getElementById('ui-happiness');
-        if (hapEl) hapEl.innerText = `${Math.round(citizenHappiness)}% ðŸ˜Š`;
+        if (hapEl) hapEl.innerText = `${Math.round(citizenHappiness)}% 😊`;
     } else if (techId === 'tech_butterfly_turnstiles') {
         evasionRate = Math.max(0.02, evasionRate * 0.50);
     } else if (techId === 'tech_fleet_climate') {
         citizenHappiness = Math.min(100, citizenHappiness + 8);
         let hapEl = document.getElementById('ui-happiness');
-        if (hapEl) hapEl.innerText = `${Math.round(citizenHappiness)}% ðŸ˜Š`;
+        if (hapEl) hapEl.innerText = `${Math.round(citizenHappiness)}% 😊`;
     } else if (techId === 'tech_cbtc_signaling') {
         (transportLines.metro || []).forEach(l => {
             l.bonusCapacity = (l.bonusCapacity || 0) + 2;
         });
     }
 }
-

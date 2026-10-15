@@ -41,8 +41,8 @@ const BASE_BUS_SPEED = 60.5;
             document.querySelectorAll('#thud-general-container .hud-tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('#thud-general-container .hud-content').forEach(c => c.classList.remove('active'));
 
-            document.getElementById(`thud-tab-btn-${tab}`).classList.add('active');
-            document.getElementById(`thud-tab-${tab}`).classList.add('active');
+            let btn = document.getElementById(`thud-tab-btn-${tab}`); if (btn) btn.classList.add('active');
+            let content = document.getElementById(`thud-tab-${tab}`); if (content) content.classList.add('active');
         }
 
         function renderTransportHUDTable() {
@@ -234,7 +234,6 @@ const BASE_BUS_SPEED = 60.5;
             renderLineDetailContent();
         }
 
-        let currentSidePanelType = null;
 
         function toggleSideUpgradesPanel() {
             if (currentSidePanelType === 'upgrades') {
@@ -330,7 +329,6 @@ const BASE_BUS_SPEED = 60.5;
             adjustStationPanelHeight();
         }
 
-        let currentStationTab = 'resumen';
 
 
         function buyLineSpeedUpgrade() {
@@ -641,14 +639,14 @@ const BASE_BUS_SPEED = 60.5;
         }
 
         function chooseLineAndStartConnect(lineId) {
-            document.getElementById('line-selector-modal').style.display = 'none';
+            let m = document.getElementById('line-selector-modal'); if (m) m.style.display = 'none';
             let allLines = [...(transportLines.metro || []), ...(transportLines.bus || [])]; selectedLineForConnect = allLines.find(l => l.id === lineId);
             currentMode = 'connecting';
             showStatusToast(tr('toastConnecting', {name: selectedLineForConnect.name}), true, selectedLineForConnect.color);
         }
 
         function cancelConnectModal() {
-            document.getElementById('line-selector-modal').style.display = 'none';
+            let m = document.getElementById('line-selector-modal'); if (m) m.style.display = 'none';
             cancelBuild();
         }
 
@@ -860,7 +858,7 @@ const BASE_BUS_SPEED = 60.5;
             connectSourceStation = null;
             selectedLineForConnect = null;
             dismissStatusToast();
-            document.getElementById('line-selector-modal').style.display = 'none';
+            let m = document.getElementById('line-selector-modal'); if (m) m.style.display = 'none';
             let thudBuildBtn = document.getElementById('thud-btn-build-general');
             if (thudBuildBtn) {
                 thudBuildBtn.classList.remove('active');

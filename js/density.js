@@ -294,7 +294,7 @@ function inspectDensityPoint(latlng) {
     if (minStDist < 280 && nearestSt) {
         spacingHtml = `
             <div style="background:rgba(239,83,80,0.14); border:1px dashed #ef5350; border-radius:6px; padding:5px 8px; margin-top:6px; color:#ff8a80; font-size:0.72rem; line-height:1.25;">
-                ⚠️ <b>Restricción de espaciado:</b> Demasiado cerca de <b>${nearestSt.name}</b> (${Math.round(minStDist)}m &lt; 280m mín. de separación).
+                ⚠️� <b>Restricción de espaciado:</b> Demasiado cerca de <b>${nearestSt.name}</b> (${Math.round(minStDist)}m &lt; 280m mín. de separación).
             </div>
         `;
     } else {
@@ -313,7 +313,7 @@ function inspectDensityPoint(latlng) {
                 <span style="display:inline-block; padding:2px 7px; border-radius:4px; font-size:0.68rem; font-weight:800; background:${tierColor}25; color:${tierColor}; border:1px solid ${tierColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                     ${tierBadge}
                 </span>
-                <span style="font-size:0.72rem; color:#aaa; font-weight:600; white-space:nowrap;">📍 ${communeName}</span>
+                <span style="font-size:0.72rem; color:#aaa; font-weight:600; white-space:nowrap;">📍� ${communeName}</span>
             </div>
             <div style="font-size:0.95rem; font-weight:800; color:#fff; margin-bottom:3px; line-height:1.2;">
                 ${streetName}
@@ -565,7 +565,7 @@ function renderDensityMapFilter() {
 
         statsEl.innerHTML = `
             <div style="margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid rgba(255,255,255,0.08); color:var(--accent); font-weight:700; font-size:0.75rem; display:flex; justify-content:space-between; align-items:center;">
-                <span>🗺️ ${activeCommunesText}</span>
+                <span>🗺️� ${activeCommunesText}</span>
                 <span style="font-size:0.65rem; color:#00e5ff; background:rgba(0,229,255,0.15); border:1px solid rgba(0,229,255,0.4); padding:1px 6px; border-radius:10px; font-weight:800;">⚡ GPU 60 FPS</span>
             </div>
             <b>${lvlCounts.total}</b> ${currentLang === 'es' ? 'Vías renderizadas en zona activa' : 'Streets rendered in active zone'}<br>

@@ -170,7 +170,7 @@
                     eventClass = evt.type === 'positive' ? 'has-event-good' : 'has-event-bad';
                 }
 
-                let weatherInfo = DAILY_WEATHER[d] || { type: 'clear', temp: 24, icon: '☀️' };
+                let weatherInfo = DAILY_WEATHER[d] || { type: 'clear', temp: 24, icon: '☀️�' };
                 let weatherClass = '';
                 if (weatherInfo.type === 'hot' || weatherInfo.type === 'heatwave') weatherClass = 'weather-cell-hot';
                 else if (weatherInfo.type === 'rain' || weatherInfo.type === 'storm') weatherClass = 'weather-cell-rain';
@@ -214,7 +214,7 @@
 
             playAudioClick();
 
-            let wData = DAILY_WEATHER[day] || { type: 'clear', temp: 24, icon: '☀️', nameEn: 'Clear', nameEs: 'Despejado' };
+            let wData = DAILY_WEATHER[day] || { type: 'clear', temp: 24, icon: '☀️�', nameEn: 'Clear', nameEs: 'Despejado' };
             let wName = currentLang === 'es' ? wData.nameEs : wData.nameEn;
             let weatherStripHtml = `<div class="cal-panel-weather-tag">${wData.icon} ${wName} • ${wData.temp}°C</div>`;
 
@@ -618,6 +618,9 @@
 
 
         async function iniciarCiudad() {
+            if (typeof loadSantiagoStreetsFromJS === 'function') {
+                loadSantiagoStreetsFromJS();
+            }
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('navbar').style.display = 'flex';
 
@@ -694,7 +697,7 @@
                 else citizenHappiness = Math.min(100, citizenHappiness + 5);
 
                 let hapEl = document.getElementById('ui-happiness');
-                hapEl.innerText = `${citizenHappiness}% ${citizenHappiness >= 80 ? '😊' : (citizenHappiness <= 30 ? '😡' : '😐')}`;
+                hapEl.innerText = `${citizenHappiness}% ${citizenHappiness >= 80 ? '😊' : (citizenHappiness <= 30 ? '😡' : '😐�')}`;
                 if (citizenHappiness >= 90) hapEl.style.color = "var(--success-pastel)";
                 else if (citizenHappiness <= 30) hapEl.style.color = "var(--danger-pastel)";
                 else hapEl.style.color = "var(--accent)";
@@ -754,7 +757,7 @@
         }
 
 
-        document.getElementById('file-input').addEventListener('change', function(e) {
+        let fi = document.getElementById('file-input'); if (fi) fi.addEventListener('change', function(e) {
             if (!e.target.files || e.target.files.length === 0) return;
             const file = e.target.files[0];
             const statusEl = document.getElementById('upload-status');

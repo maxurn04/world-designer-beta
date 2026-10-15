@@ -120,7 +120,7 @@ function saveGameToLocalStorage(isAutoSave = false) {
         return true;
     } catch(e) {
         console.error("Save error:", e);
-        showStatusToast("⚠️ Save error: " + e.message, false, 'var(--danger-pastel)');
+        showStatusToast("⚠️� Save error: " + e.message, false, 'var(--danger-pastel)');
         return false;
     }
 }
@@ -128,7 +128,7 @@ function saveGameToLocalStorage(isAutoSave = false) {
 function loadGameFromLocalStorage() {
     let savedStr = localStorage.getItem(SAVE_LOCALSTORAGE_KEY);
     if (!savedStr) {
-        showStatusToast(currentLang === 'es' ? '⚠️ No hay partida guardada' : '⚠️ No save found', false, 'var(--danger-pastel)');
+        showStatusToast(currentLang === 'es' ? '⚠️� No hay partida guardada' : '⚠️� No save found', false, 'var(--danger-pastel)');
         return;
     }
     try {
@@ -136,7 +136,7 @@ function loadGameFromLocalStorage() {
         restoreGameState(data);
         closeSaveModal();
     } catch(e) {
-        showStatusToast("⚠️ Load error: " + e.message, false, 'var(--danger-pastel)');
+        showStatusToast("⚠️� Load error: " + e.message, false, 'var(--danger-pastel)');
     }
 }
 
@@ -154,9 +154,9 @@ function exportSaveFile() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showStatusToast(currentLang === 'es' ? '⬇️ Archivo de guardado descargado' : '⬇️ Save file downloaded', false, 'var(--success-pastel)');
+        showStatusToast(currentLang === 'es' ? '⬇️� Archivo de guardado descargado' : '⬇️� Save file downloaded', false, 'var(--success-pastel)');
     } catch(e) {
-        showStatusToast("⚠️ Export error: " + e.message, false, 'var(--danger-pastel)');
+        showStatusToast("⚠️� Export error: " + e.message, false, 'var(--danger-pastel)');
     }
 }
 
@@ -170,7 +170,7 @@ function importSaveFile(inputEl) {
             restoreGameState(parsed);
             closeSaveModal();
         } catch(err) {
-            showStatusToast("⚠️ Invalid JSON: " + err.message, false, 'var(--danger-pastel)');
+            showStatusToast("⚠️� Invalid JSON: " + err.message, false, 'var(--danger-pastel)');
         }
     };
     reader.readAsText(file);
@@ -179,7 +179,7 @@ function importSaveFile(inputEl) {
 
 async function restoreGameState(data) {
     if (!data || !data.saveVersion) {
-        showStatusToast(currentLang === 'es' ? '⚠️ Archivo de guardado no compatible' : '⚠️ Incompatible save file', false, 'var(--danger-pastel)');
+        showStatusToast(currentLang === 'es' ? '⚠️� Archivo de guardado no compatible' : '⚠️� Incompatible save file', false, 'var(--danger-pastel)');
         return false;
     }
 
@@ -366,7 +366,7 @@ async function restoreGameState(data) {
     } catch (err) {
         console.error("Error loading game:", err);
         isGamePaused = false;
-        showStatusToast("⚠️ Load Error: " + err.message, false, 'var(--danger-pastel)');
+        showStatusToast("⚠️� Load Error: " + err.message, false, 'var(--danger-pastel)');
         return false;
     }
 }

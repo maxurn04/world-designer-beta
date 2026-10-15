@@ -1,4 +1,4 @@
-﻿/* ==============================================================
+/* ==============================================================
    MAP INITIALIZATION, ZONES & STREET NETWORK
    ============================================================== */
 
@@ -121,6 +121,24 @@ document.addEventListener('DOMContentLoaded', loadSantiagoStreetsFromJS);
             }
         }
 
+        function handleBlockedZoneClick(e) {
+            if (currentLevel < 10) {
+                let nextLvl = ZONES[currentLevel];
+                let curStations = allStations.filter(s => s.type === 'metro').length;
+                let curBus = (typeof transportLines !== 'undefined' && transportLines.bus) ? transportLines.bus.length : 0;
+
+                L.popup({ className: 'custom-popup' })
+                    .setLatLng(e.latlng)
+                    .setContent(`
+                        <div style="text-align:center; padding:5px;">
+                            <b style="color:var(--danger-pastel)">${tr('blockedTitle')}</b><br>
+                            ${tr('blockedNext', {name: nextLvl ? nextLvl.name : ''})}<br><br>
+                            <i>${tr('blockedReq', {currSt: curStations, reqSt: nextLvl ? nextLvl.req.st : 0, currBus: curBus, reqBus: nextLvl ? nextLvl.req.bus : 0})}</i>
+                        </div>
+                    `).openOn(map);
+            }
+        }
+
         function renderActiveZones() {
             maskLayerGroup.clearLayers();
             activeBorders.clearLayers();
@@ -207,3 +225,6 @@ document.addEventListener('DOMContentLoaded', loadSantiagoStreetsFromJS);
                 showStatusToast(tr('toastLevelUp', {name: ZONES[currentLevel-1].name}), false, 'var(--success-pastel)');
             }
         }
+
+        // Initialize active zones and world mask
+        syncZoneGeometries();

@@ -1,4 +1,4 @@
-﻿/* ==============================================================
+/* ==============================================================
    SIMULATION ENGINE (CROWDS, VEHICLE TRAFFIC & GAME LOOP)
    ============================================================== */
 
@@ -564,7 +564,7 @@ let MAX_CARS = 380;
                                                 el.style.opacity = '0';
                                             }
                                         }
-                                        showStatusToast(`🛠 Convoy of ${net.name} entered depot.`);
+                                        showStatusToast(`🛠️ Convoy of ${net.name} entered depot.`);
                                     }, 800);
                                     return;
                                 }

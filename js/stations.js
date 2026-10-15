@@ -1,17 +1,15 @@
-﻿/* ==============================================================
+/* ==============================================================
    STATIONS, UPGRADES, PIDS & INTERMODAL SYSTEM
    ============================================================== */
 
 let allStations = [];
 let currentSelectedStation = null;
 let currentStationPopup = null;
-currentStationTab = 'resumen';
-currentSidePanelType = null;
-
-
+let currentStationTab = 'resumen';
+let currentSidePanelType = null;
 
 /* ==============================================================
-   NUEVA MECÃƒÂNICA: ESTACIONES INTERMODALES (METRO + BUS)
+   NUEVA MECÁNICA: ESTACIONES INTERMODALES (METRO + BUS)
    ============================================================== */
 
 function hudUpgradeIntermodal(stId) {
@@ -19,7 +17,7 @@ function hudUpgradeIntermodal(stId) {
     if (!st) return;
 
     if (st.isIntermodal) {
-        showStatusToast(currentLang === 'es' ? 'Ã¢â€žÂ¹Ã¯Â¸Â Esta estaciÃƒÂ³n ya opera como nodo Intermodal.' : 'Ã¢â€žÂ¹Ã¯Â¸Â This station is already an active Intermodal hub.');
+        showStatusToast(currentLang === 'es' ? 'ℹ️ Esta estación ya opera como nodo Intermodal.' : 'ℹ️ This station is already an active Intermodal hub.');
         return;
     }
 
@@ -27,8 +25,8 @@ function hudUpgradeIntermodal(stId) {
     if (money < INTERMODAL_CONVERT_COST) {
         showStatusToast(
             currentLang === 'es'
-                ? 'Ã¢Å¡Â Ã¯Â¸Â Fondos insuficientes para obras de intermodalidad ($15.000.000 requeridos).'
-                : 'Ã¢Å¡Â Ã¯Â¸Â Insufficient funds for intermodal conversion ($15,000,000 required).',
+                ? '⚠️ Fondos insuficientes para obras de intermodalidad ($15.000.000 requeridos).'
+                : '⚠️ Insufficient funds for intermodal conversion ($15,000,000 required).',
             false,
             'var(--danger-pastel)'
         );
@@ -55,8 +53,8 @@ function hudUpgradeIntermodal(stId) {
 
     showStatusToast(
         currentLang === 'es'
-            ? ('🏢 ¡' + st.name + ' convertida con éxito en Estación Intermodal! Habilitada para Metro y Buses.')
-            : ('🏢 ' + st.name + ' successfully upgraded to Intermodal Hub! Enabled for Metro & Buses.'),
+            ? ('🏢🔄 ¡' + st.name + ' convertida con éxito en Estación Intermodal! Habilitada para Metro y Buses.')
+            : ('🏢🔄 ' + st.name + ' successfully upgraded to Intermodal Hub! Enabled for Metro & Buses.'),
         false,
         'var(--accent)'
     );
@@ -128,7 +126,7 @@ function isStationIntermodal(st) {
         }
 
         function buildStationMenuHTML(st, isLateral = false) {
-            let iconEmoji = st.type === 'metro' ? 'ðŸš‡' : 'ðŸšŒ';
+            let iconEmoji = st.type === 'metro' ? '🚇' : '🚌';
             let lineTag = st.lines.length > 0 
                 ? st.lines.map(lId => {
                     let line = transportLines[st.type].find(x => x.id === lId);
@@ -163,68 +161,68 @@ function isStationIntermodal(st) {
 
             let upgradesHtml = `
                 <div class="st-upgrades-section-title">
-                    <span>ðŸ› ï¸ ${currentLang === 'es' ? 'Mejoras y AmpliaciÃ³n de EstaciÃ³n' : 'Station Upgrades & Expansion'}</span>
-                </div>
-                <div class="st-upgrades-grid-v2">
                     <div class="st-upg-card intermodal-upgrade-card ${st.isIntermodal ? 'active-bought' : ''}" onclick="hudUpgradeIntermodal('${st.id}')">
-                        <div class="st-upg-icon">Ã°Å¸ÂÂ¢</div>
+                        <div class="st-upg-icon">🏢🔄</div>
                         <div class="st-upg-info">
                             <div class="st-upg-name">
-                                ${currentLang === 'es' ? 'Transformar a EstaciÃƒÂ³n Intermodal' : 'Upgrade to Intermodal Hub'}
-                                ${st.isIntermodal ? '<span class="st-upg-lvl" style="color:var(--accent);">Ã¢Å“â€œ Bimodal</span>' : ''}
+                                ${currentLang === 'es' ? 'Transformar a Estación Intermodal' : 'Upgrade to Intermodal Hub'}
+                                ${st.isIntermodal ? '<span class="st-upg-lvl" style="color:var(--accent);">✓ Bimodal</span>' : ''}
                             </div>
                             <div class="st-upg-desc">
                                 ${currentLang === 'es' 
-                                    ? 'Habilita conexiÃƒÂ³n de andenes subterrÃƒÂ¡neos y terminal de micros. +250 Capacidad, transbordo bimodal masivo. Ã¢Å¡Â Ã¯Â¸Â Mayor costo de mantenimiento diario (-.000/dÃƒÂ­a).' 
-                                    : 'Integrates Subway platforms and Bus terminal. +250 Capacity, bimodal transfers. Ã¢Å¡Â Ã¯Â¸Â Higher daily maintenance fee (-,000/day).'}
+                                    ? 'Habilita conexión de andenes subterráneos y terminal de micros. +250 Capacidad, transbordo bimodal masivo. ⚠️ Mayor costo de mantenimiento diario (-$450.000/día).' 
+                                    : 'Integrates Subway platforms and Bus terminal. +250 Capacity, bimodal transfers. ⚠️ Higher daily maintenance fee (-$450,000/day).'}
                             </div>
                             <div class="st-upg-cost" style="color:${st.isIntermodal ? 'var(--info-pastel)' : 'var(--accent)'}; font-weight:bold;">
-                                ${st.isIntermodal ? (currentLang === 'es' ? 'Ã¢Å“â€œ Operando como Intermodal' : 'Ã¢Å“â€œ Active Intermodal') : '.0M'}
+                                ${st.isIntermodal ? (currentLang === 'es' ? '✓ Operando como Intermodal' : '✓ Active Intermodal') : '$15.0M'}
                             </div>
                         </div>
                     </div>
+                    <span>🛠️ ${currentLang === 'es' ? 'Mejoras y Ampliación de Estación' : 'Station Upgrades & Expansion'}</span>
+                </div>
+                <div class="st-upgrades-grid-v2">
                     <div class="st-upg-card ${(st.level || 1) >= 5 ? 'maxed' : ''}" onclick="hudUpgradePlatformSize('${st.id}')">
-                        <div class="st-upg-icon">ðŸ“</div>
+                        <div class="st-upg-icon">📏</div>
                         <div class="st-upg-info">
-                            <div class="st-upg-name">${currentLang === 'es' ? 'AndÃ©n Extendido' : 'Platform Extension'} <span class="st-upg-lvl">Lv.${st.level || 1}/5</span></div>
+                            <div class="st-upg-name">${currentLang === 'es' ? 'Andén Extendido' : 'Platform Extension'} <span class="st-upg-lvl">Lv.${st.level || 1}/5</span></div>
                             <div class="st-upg-desc">${currentLang === 'es' ? `Capacidad: ${currentCap} pax (+50)` : `Capacity: ${currentCap} pax (+50)`}</div>
-                            <div class="st-upg-cost">${(st.level || 1) >= 5 ? (currentLang === 'es' ? 'âœ“ Nivel MÃ¡ximo' : 'âœ“ Max Level') : `$${(nextPlatformCost/1000000).toFixed(1)}M`}</div>
+                            <div class="st-upg-cost">${(st.level || 1) >= 5 ? (currentLang === 'es' ? '✓ Nivel Máximo' : '✓ Max Level') : `$${(nextPlatformCost/1000000).toFixed(1)}M`}</div>
                         </div>
                     </div>
 
                     <div class="st-upg-card ${turnstileActive ? 'active-bought' : ''}" onclick="hudUpgradeTurnstiles('${st.id}')">
-                        <div class="st-upg-icon">âš¡</div>
+                        <div class="st-upg-icon">⚡</div>
                         <div class="st-upg-info">
-                            <div class="st-upg-name">${currentLang === 'es' ? 'Torniquetes RÃ¡pidos' : 'High-Speed Gates'}</div>
+                            <div class="st-upg-name">${currentLang === 'es' ? 'Torniquetes Rápidos' : 'High-Speed Gates'}</div>
                             <div class="st-upg-desc">${currentLang === 'es' ? '+20% flujo entrada' : '+20% entry intake'}</div>
-                            <div class="st-upg-cost">${turnstileActive ? (currentLang === 'es' ? 'âœ“ Instalado' : 'âœ“ Installed') : '$4.0M'}</div>
+                            <div class="st-upg-cost">${turnstileActive ? (currentLang === 'es' ? '✓ Instalado' : '✓ Installed') : '$4.0M'}</div>
                         </div>
                     </div>
 
                     <div class="st-upg-card ${elevatorActive ? 'active-bought' : ''}" onclick="hudUpgradeElevator('${st.id}')">
-                        <div class="st-upg-icon">ðŸ›—</div>
+                        <div class="st-upg-icon">🛗</div>
                         <div class="st-upg-info">
                             <div class="st-upg-name">${currentLang === 'es' ? 'Ascensor Accesible' : 'Universal Elevator'}</div>
-                            <div class="st-upg-desc">${currentLang === 'es' ? '+25% atracciÃ³n â€¢ +4% felicidad' : '+25% attraction â€¢ +4% happiness'}</div>
-                            <div class="st-upg-cost">${elevatorActive ? (currentLang === 'es' ? 'âœ“ Habilitado' : 'âœ“ Enabled') : '$5.0M'}</div>
+                            <div class="st-upg-desc">${currentLang === 'es' ? '+25% atracción • +4% felicidad' : '+25% attraction • +4% happiness'}</div>
+                            <div class="st-upg-cost">${elevatorActive ? (currentLang === 'es' ? '✓ Habilitado' : '✓ Enabled') : '$5.0M'}</div>
                         </div>
                     </div>
 
                     <div class="st-upg-card ${st.revMultiplier > 1 ? 'active-bought' : ''}" onclick="hudUpgradeRevenue('${st.id}')">
-                        <div class="st-upg-icon">ðŸª</div>
+                        <div class="st-upg-icon">🏪</div>
                         <div class="st-upg-info">
                             <div class="st-upg-name">${currentLang === 'es' ? 'Locales Comerciales' : 'Retail Stores'}</div>
-                            <div class="st-upg-desc">${currentLang === 'es' ? '+25% recaudaciÃ³n por boleto' : '+25% fare revenue'}</div>
-                            <div class="st-upg-cost">${st.revMultiplier > 1 ? (currentLang === 'es' ? 'âœ“ Activo' : 'âœ“ Active') : '$4.0M'}</div>
+                            <div class="st-upg-desc">${currentLang === 'es' ? '+25% recaudación por boleto' : '+25% fare revenue'}</div>
+                            <div class="st-upg-cost">${st.revMultiplier > 1 ? (currentLang === 'es' ? '✓ Activo' : '✓ Active') : '$4.0M'}</div>
                         </div>
                     </div>
 
                     <div class="st-upg-card ${st.attrMultiplier > 1 ? 'active-bought' : ''}" onclick="hudUpgradeAttraction('${st.id}')">
-                        <div class="st-upg-icon">ðŸ“¢</div>
+                        <div class="st-upg-icon">📢</div>
                         <div class="st-upg-info">
-                            <div class="st-upg-name">${currentLang === 'es' ? 'CampaÃ±a AtracciÃ³n' : 'Marketing Campaign'}</div>
-                            <div class="st-upg-desc">${currentLang === 'es' ? '+50% atracciÃ³n de zona' : '+50% zone ridership'}</div>
-                            <div class="st-upg-cost">${st.attrMultiplier > 1 ? (currentLang === 'es' ? 'âœ“ Activo' : 'âœ“ Active') : '$2.5M'}</div>
+                            <div class="st-upg-name">${currentLang === 'es' ? 'Campaña Atracción' : 'Marketing Campaign'}</div>
+                            <div class="st-upg-desc">${currentLang === 'es' ? '+50% atracción de zona' : '+50% zone ridership'}</div>
+                            <div class="st-upg-cost">${st.attrMultiplier > 1 ? (currentLang === 'es' ? '✓ Activo' : '✓ Active') : '$2.5M'}</div>
                         </div>
                     </div>
                 </div>
@@ -235,27 +233,25 @@ function isStationIntermodal(st) {
 
             let tabButtonsHtml = `
                 <div class="st-tabs-rail">
-                    <button id="st-tab-btn-resumen" class="st-tab-btn ${isResumen ? 'active' : ''}" onclick="switchStationTab('resumen')" title="${currentLang === 'es' ? 'Resumen general de estaciÃ³n' : 'Station Overview'}">
-                        ðŸ“‹ <span>${currentLang === 'es' ? 'Resumen' : 'Overview'}</span>
+                    <button id="st-tab-btn-resumen" class="st-tab-btn ${isResumen ? 'active' : ''}" onclick="switchStationTab('resumen')" title="${currentLang === 'es' ? 'Resumen general de estación' : 'Station Overview'}">
+                        📋 <span>${currentLang === 'es' ? 'Resumen' : 'Overview'}</span>
                     </button>
-                    <button id="st-tab-btn-mejoras" class="st-tab-btn ${isMejoras ? 'active' : ''}" onclick="switchStationTab('mejoras')" title="${currentLang === 'es' ? 'Mejoras y ampliaciÃ³n' : 'Upgrades'}">
-                        ðŸ› ï¸ <span>${currentLang === 'es' ? 'Mejoras' : 'Upgrades'}</span>
+                    <button id="st-tab-btn-mejoras" class="st-tab-btn ${isMejoras ? 'active' : ''}" onclick="switchStationTab('mejoras')" title="${currentLang === 'es' ? 'Mejoras y ampliación' : 'Upgrades'}">
+                        🛠️ <span>${currentLang === 'es' ? 'Mejoras' : 'Upgrades'}</span>
+                ${st.isIntermodal ? `<div class="intermodal-banner">🏢🔄 ${currentLang === "es" ? "NODO INTERMODAL ACTIVO (METRO + BUS)" : "ACTIVE INTERMODAL HUB (METRO + BUS)"}</div>` : ""}
                     </button>
                 </div>
             `;
 
             return `
                 ${tabButtonsHtml}
-                ${st.isIntermodal ? `<div class="intermodal-banner">🏢 ${currentLang === "es" ? "NODO INTERMODAL ACTIVO (METRO + BUS)" : "ACTIVE INTERMODAL HUB (METRO + BUS)"}</div>` : ""}
-
-
                 <div class="st-header-row">
                     <span class="st-name-tag" onclick="hudEditStationName('${st.id}')" title="Click to rename">
-                        ${iconEmoji} ${st.name} âœï¸
+                        ${iconEmoji} ${st.name} ✏️
                     </span>
                     <div style="display:flex; gap:4px; align-items:center;">
                         <button class="st-btn-icon" onclick="panToStation('${st.id}');" title="Center camera">${searchIconSVG}</button>
-                        <button class="st-btn-icon" onclick="${isLateral ? 'closeSidePanel()' : 'closeStationHUD()'}" title="Close">âœ–</button>
+                        <button class="st-btn-icon" onclick="${isLateral ? 'closeSidePanel()' : 'closeStationHUD()'}" title="Close">✖</button>
                     </div>
                 </div>
 
@@ -266,6 +262,7 @@ function isStationIntermodal(st) {
                             <div class="st-stat-box">
                                 <span class="st-stat-label">${tr('stLevel')}</span>
                                 <span class="st-stat-val">${st.level || 1}</span>
+                        ${st.isIntermodal ? `<div class="intermodal-maint-alert"><b>⚠️ ${currentLang === "es" ? "Costo Operacional Elevado" : "High Operational Cost"}:</b> -$${(st.intermodalDailyMaint || 450000).toLocaleString()}/día (${currentLang === "es" ? "Terminales y andenes bimodales" : "Bimodal terminals and concourses"})</div>` : ""}
                             </div>
                             <div class="st-stat-box">
                                 <span class="st-stat-label">${tr('stLines')}</span>
@@ -282,12 +279,6 @@ function isStationIntermodal(st) {
                         </div>
 
                         ${pidsBoxHtml}
-                        ${st.isIntermodal ? `<div class="intermodal-maint-alert"><b>⚠️ ${currentLang === "es" ? "Costo Operacional Elevado" : "High Operational Cost"}:</b> -$${(st.intermodalDailyMaint || 450000).toLocaleString()}/día (${currentLang === "es" ? "Terminales y andenes bimodales" : "Bimodal terminals and concourses"})</div>` : ""}
-
-
-
-
-
 
                         <div class="st-mid-grid">
                             <div class="st-actions-col">
@@ -332,8 +323,8 @@ function isStationIntermodal(st) {
             if (standalone && standalone.style.display === 'block') openStandaloneStationPanel(st);
             if (activeLineId) renderLineDetailContent();
 
-            let typeName = st.expressType === 'red' ? 'Red Route Stop (ðŸ”´)' : (st.expressType === 'green' ? 'Green Route Stop (ðŸŸ¢)' : 'Common Stop (âšª)');
-            showStatusToast(`ðŸš‡ ${st.name} configured as ${typeName}.`);
+            let typeName = st.expressType === 'red' ? 'Red Route Stop (🔴)' : (st.expressType === 'green' ? 'Green Route Stop (🟢)' : 'Common Stop (⚪)');
+            showStatusToast(`🚇 ${st.name} configured as ${typeName}.`);
         }
 
         function openSideStationPanel(st) {
@@ -349,7 +340,7 @@ function isStationIntermodal(st) {
             let arrow = document.getElementById('upgrade-arrow-icon');
 
             if (btn) btn.classList.remove('active');
-            if (arrow) arrow.innerText = 'â–¼';
+            if (arrow) arrow.innerText = '▼';
 
             contentEl.innerHTML = buildStationMenuHTML(st, true);
             sidePanel.classList.add('active');
@@ -384,7 +375,7 @@ function isStationIntermodal(st) {
 
             if (sidePanel) sidePanel.classList.remove('active');
             if (btn) btn.classList.remove('active');
-            if (arrow) arrow.innerText = 'â–¼';
+            if (arrow) arrow.innerText = '▼';
         }
 
         function closeStationHUD() {
@@ -446,6 +437,10 @@ function isStationIntermodal(st) {
             }
         }
 
+        function panToStation(stId) {
+            let st = allStations.find(s => s.id === stId);
+            if (st) map.flyTo(st.latlng, 16, { duration: 0.8 });
+        }
 
         function updateStationBadge(st) {
             let badgeEl = document.getElementById(`badge-${st.id}`);
@@ -456,7 +451,7 @@ function isStationIntermodal(st) {
 
             if (st.lines.length === 0) {
                 let total = Object.values(st.passengersByLine).reduce((a,b)=>a+b, 0);
-                badgeEl.innerHTML = `ðŸ‘¤ ${total}`;
+                badgeEl.innerHTML = `👤 ${total}`;
                 return;
             }
 
@@ -470,9 +465,10 @@ function isStationIntermodal(st) {
                 if (l) {
                     html = `<div class="line-badge-pill" style="background:${l.color};"><span>${lineCount}</span></div>`;
                 }
+            if (st.isIntermodal) { html = `<div class="line-badge-pill intermodal-badge-pill" title="${currentLang === "es" ? "Estación Intermodal (Metro + Bus)" : "Intermodal Hub (Metro + Bus)"}"><span>🏢🔄 INTERMODAL</span></div>` + html; }
             } else {
                 if (st.lines.length >= 2) {
-                    html += `<div class="line-badge-pill combo-hub-pill" title="${currentLang === 'es' ? 'CombinaciÃ³n MultilÃ­nea' : 'Interchange Hub'}"><span>ðŸ”„</span></div>`;
+                    html += `<div class="line-badge-pill combo-hub-pill" title="${currentLang === 'es' ? 'Combinación Multilínea' : 'Interchange Hub'}"><span>🔄</span></div>`;
                 }
                 st.lines.forEach(lId => {
                     let l = transportLines[st.type].find(x => x.id === lId);
@@ -493,9 +489,6 @@ function isStationIntermodal(st) {
                 }
             }
 
-
-            if (st.isIntermodal) { html = `<div class="line-badge-pill intermodal-badge-pill" title="${currentLang === "es" ? "Estación Intermodal (Metro + Bus)" : "Intermodal Hub (Metro + Bus)"}"><span>🏢 INTERMODAL</span></div>` + html; }
-
             badgeEl.innerHTML = html;
 
             if (dotEl) {
@@ -506,6 +499,7 @@ function isStationIntermodal(st) {
             }
         }
 
+
         function handleStationClick(stObj) {
             if (currentMode === 'connecting') {
                 if (connectSourceStation && connectSourceStation.id !== stObj.id) {
@@ -515,13 +509,13 @@ function isStationIntermodal(st) {
             }
 
             currentSelectedStation = stObj;
-            let iconEmoji = stObj.type === 'metro' ? 'ðŸš‡' : 'ðŸšŒ';
+            let iconEmoji = stObj.type === 'metro' ? '🚇' : '🚌';
             let totalPass = Object.values(stObj.passengersByLine || {}).reduce((a, b) => a + b, 0);
 
             let linesInfo = stObj.lines.length > 0
                 ? stObj.lines.map(lId => {
                     let l = transportLines[stObj.type].find(x => x.id === lId);
-                    return l ? `<span style="color:${l.color}; font-weight:bold;">â— ${l.name}</span>` : '';
+                    return l ? `<span style="color:${l.color}; font-weight:bold;">● ${l.name}</span>` : '';
                 }).join(' ')
                 : `<span style="color:#888;">(${tr('stIsolated')})</span>`;
 
@@ -539,13 +533,13 @@ function isStationIntermodal(st) {
                     <div style="margin-bottom:4px;">
                         <b style="color:var(--accent); font-size:0.95rem;">${iconEmoji} ${stObj.name}</b>
                     </div>
-                    <span style="font-size:0.75rem; color:#aaa;">Level ${stObj.level} â€¢ ${totalPass} pax waiting</span><br>
+                    <span style="font-size:0.75rem; color:#aaa;">Level ${stObj.level} • ${totalPass} pax waiting</span><br>
                     <div style="font-size:0.75rem; margin:4px 0;">${linesInfo}</div>
                     <hr style="border-color:#1f1f2a; margin:6px 0;">
 
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-bottom:6px;">
                         <button class="action-btn" style="padding:5px; font-size:0.72rem; margin:0;" onclick="popupActionConnect('${stObj.id}')">${tr('stBtnConnect')}</button>
-                        <button class="action-btn" style="padding:5px; font-size:0.72rem; margin:0;" onclick="popupActionRename('${stObj.id}')">âœï¸ Rename</button>
+                        <button class="action-btn" style="padding:5px; font-size:0.72rem; margin:0;" onclick="popupActionRename('${stObj.id}')">✏️ Rename</button>
                         <button class="action-btn" style="padding:5px; font-size:0.72rem; margin:0;" onclick="popupActionMove('${stObj.id}')">${tr('stBtnMove')}</button>
                         <button class="action-btn danger" style="padding:5px; font-size:0.72rem; margin:0;" onclick="popupActionDemolish('${stObj.id}')">${tr('stBtnDemolish')}</button>
                     </div>
@@ -555,7 +549,6 @@ function isStationIntermodal(st) {
             `)
             .openOn(map);
         }
-
 
         function hudEditStationName(stId) {
             let targetSt = stId ? allStations.find(s => s.id === stId) : currentSelectedStation;
@@ -588,7 +581,7 @@ function isStationIntermodal(st) {
             closeStationHUD();
             closeSidePanel();
             closeStationPopup();
-            showStatusToast("â†” Click on the map to relocate station.", false);
+            showStatusToast("↔ Click on the map to relocate station.", false);
         }
 
         function hudActionDemolish(stId) {
@@ -633,12 +626,12 @@ function isStationIntermodal(st) {
             currentSelectedStation = targetSt;
             targetSt.level = targetSt.level || 1;
             if (targetSt.level >= 5) {
-                showStatusToast(currentLang === 'es' ? 'â„¹ï¸ AndÃ©n en nivel mÃ¡ximo (Lv.5)' : 'â„¹ï¸ Platform already at max level (Lv.5)', false, 'var(--accent)');
+                showStatusToast(currentLang === 'es' ? 'ℹ️ Andén en nivel máximo (Lv.5)' : 'ℹ️ Platform already at max level (Lv.5)', false, 'var(--accent)');
                 return;
             }
             let cost = targetSt.level * 3500000;
             if (money < cost) {
-                showStatusToast(currentLang === 'es' ? `âš ï¸ Fondos insuficientes ($${cost.toLocaleString()} requeridos).` : `âš ï¸ Insufficient funds ($${cost.toLocaleString()} required).`, false, 'var(--danger-pastel)');
+                showStatusToast(currentLang === 'es' ? `⚠️ Fondos insuficientes ($${cost.toLocaleString()} requeridos).` : `⚠️ Insufficient funds ($${cost.toLocaleString()} required).`, false, 'var(--danger-pastel)');
                 return;
             }
             money -= cost;
@@ -651,7 +644,7 @@ function isStationIntermodal(st) {
             if (currentSidePanelType === 'station') openSideStationPanel(targetSt);
             let standalone = document.getElementById('station-hud-panel');
             if (standalone && standalone.style.display === 'block') openStandaloneStationPanel(targetSt);
-            showStatusToast(currentLang === 'es' ? `â­ Â¡AndÃ©n ampliado a Nivel ${targetSt.level}! Capacidad: ${targetSt.maxCapacity} pax` : `â­ Platform extended to Level ${targetSt.level}! Capacity: ${targetSt.maxCapacity} pax`, false, 'var(--success-pastel)');
+            showStatusToast(currentLang === 'es' ? `⭐ ¡Andén ampliado a Nivel ${targetSt.level}! Capacidad: ${targetSt.maxCapacity} pax` : `⭐ Platform extended to Level ${targetSt.level}! Capacity: ${targetSt.maxCapacity} pax`, false, 'var(--success-pastel)');
         }
         function hudUpgradeSize(stId) { hudUpgradePlatformSize(stId); }
 
@@ -662,7 +655,7 @@ function isStationIntermodal(st) {
             if (targetSt.hasTurnstiles) return;
             let cost = 4000000;
             if (money < cost) {
-                showStatusToast(currentLang === 'es' ? 'âš ï¸ Fondos insuficientes ($4,000,000 requeridos).' : 'âš ï¸ Insufficient funds ($4,000,000 required).', false, 'var(--danger-pastel)');
+                showStatusToast(currentLang === 'es' ? '⚠️ Fondos insuficientes ($4,000,000 requeridos).' : '⚠️ Insufficient funds ($4,000,000 required).', false, 'var(--danger-pastel)');
                 return;
             }
             money -= cost;
@@ -675,7 +668,7 @@ function isStationIntermodal(st) {
             if (currentSidePanelType === 'station') openSideStationPanel(targetSt);
             let standalone = document.getElementById('station-hud-panel');
             if (standalone && standalone.style.display === 'block') openStandaloneStationPanel(targetSt);
-            showStatusToast(currentLang === 'es' ? 'âš¡ Â¡Torniquetes bidireccionales de alta velocidad instalados! +20% flujo de pasajeros.' : 'âš¡ High-speed bi-directional turnstiles installed! +20% passenger flow.', false, 'var(--success-pastel)');
+            showStatusToast(currentLang === 'es' ? '⚡ ¡Torniquetes bidireccionales de alta velocidad instalados! +20% flujo de pasajeros.' : '⚡ High-speed bi-directional turnstiles installed! +20% passenger flow.', false, 'var(--success-pastel)');
         }
 
         function hudUpgradeElevator(stId) {
@@ -685,7 +678,7 @@ function isStationIntermodal(st) {
             if (targetSt.hasElevator) return;
             let cost = 5000000;
             if (money < cost) {
-                showStatusToast(currentLang === 'es' ? 'âš ï¸ Fondos insuficientes ($5,000,000 requeridos).' : 'âš ï¸ Insufficient funds ($5,000,000 required).', false, 'var(--danger-pastel)');
+                showStatusToast(currentLang === 'es' ? '⚠️ Fondos insuficientes ($5,000,000 requeridos).' : '⚠️ Insufficient funds ($5,000,000 required).', false, 'var(--danger-pastel)');
                 return;
             }
             money -= cost;
@@ -698,7 +691,7 @@ function isStationIntermodal(st) {
             if (currentSidePanelType === 'station') openSideStationPanel(targetSt);
             let standalone = document.getElementById('station-hud-panel');
             if (standalone && standalone.style.display === 'block') openStandaloneStationPanel(targetSt);
-            showStatusToast(currentLang === 'es' ? 'ðŸ›— Â¡Ascensores de accesibilidad universal habilitados! +25% atracciÃ³n y +4% felicidad.' : 'ðŸ›— Universal accessibility elevators installed! +25% attraction & +4% happiness.', false, 'var(--success-pastel)');
+            showStatusToast(currentLang === 'es' ? '🛗 ¡Ascensores de accesibilidad universal habilitados! +25% atracción y +4% felicidad.' : '🛗 Universal accessibility elevators installed! +25% attraction & +4% happiness.', false, 'var(--success-pastel)');
         }
 
         function hudUpgradeRevenue(stId) {
@@ -706,7 +699,7 @@ function isStationIntermodal(st) {
             if (!targetSt || targetSt.revMultiplier > 1.25) return;
             currentSelectedStation = targetSt;
             let cost = 4000000;
-            if (money < cost) { showStatusToast("âš ï¸ Insufficient funds ($4,000,000).", false, 'var(--danger-pastel)'); return; }
+            if (money < cost) { showStatusToast("⚠️ Insufficient funds ($4,000,000).", false, 'var(--danger-pastel)'); return; }
             money -= cost;
             document.getElementById('ui-money').innerText = formatFixedCurrency(money);
             targetSt.revMultiplier = (targetSt.revMultiplier || 1.0) + 0.25;
@@ -714,7 +707,7 @@ function isStationIntermodal(st) {
             if (currentSidePanelType === 'station') openSideStationPanel(targetSt);
             let standalone = document.getElementById('station-hud-panel');
             if (standalone && standalone.style.display === 'block') openStandaloneStationPanel(targetSt);
-            showStatusToast(currentLang === 'es' ? "ðŸ’° Â¡Locales comerciales instalados! +25% recaudaciÃ³n por boleto." : "ðŸ’° Retail stores added! Increased fare revenue.", false, 'var(--success-pastel)');
+            showStatusToast(currentLang === 'es' ? "💰 ¡Locales comerciales instalados! +25% recaudación por boleto." : "💰 Retail stores added! Increased fare revenue.", false, 'var(--success-pastel)');
         }
 
         function hudUpgradeAttraction(stId) {
@@ -722,7 +715,7 @@ function isStationIntermodal(st) {
             if (!targetSt || targetSt.attrMultiplier > 1.4) return;
             currentSelectedStation = targetSt;
             let cost = 2500000;
-            if (money < cost) { showStatusToast("âš ï¸ Insufficient funds ($2,500,000).", false, 'var(--danger-pastel)'); return; }
+            if (money < cost) { showStatusToast("⚠️ Insufficient funds ($2,500,000).", false, 'var(--danger-pastel)'); return; }
             money -= cost;
             document.getElementById('ui-money').innerText = formatFixedCurrency(money);
             targetSt.attrMultiplier = (targetSt.attrMultiplier || 1.0) * 1.5;
@@ -730,9 +723,8 @@ function isStationIntermodal(st) {
             if (currentSidePanelType === 'station') openSideStationPanel(targetSt);
             let standalone = document.getElementById('station-hud-panel');
             if (standalone && standalone.style.display === 'block') openStandaloneStationPanel(targetSt);
-            showStatusToast(currentLang === 'es' ? "ðŸ“¢ Â¡CampaÃ±a de atracciÃ³n activa! +50% atracciÃ³n de la zona." : "ðŸ“¢ Marketing campaign active! +50% ridership attraction.", false, 'var(--success-pastel)');
+            showStatusToast(currentLang === 'es' ? "📢 ¡Campaña de atracción activa! +50% atracción de la zona." : "📢 Marketing campaign active! +50% ridership attraction.", false, 'var(--success-pastel)');
         }
-
 
         function getStationPidsData(st) {
             if (!st || st.type !== 'metro' || !st.lines || st.lines.length === 0) return [];
@@ -841,7 +833,7 @@ function isStationIntermodal(st) {
 
             let rowsHtml = '';
             if (pids.length === 0) {
-                rowsHtml = `<div class="pids-no-trains">${currentLang === 'es' ? 'Sin lÃ­neas de metro asignadas' : 'No metro lines connected'}</div>`;
+                rowsHtml = `<div class="pids-no-trains">${currentLang === 'es' ? 'Sin líneas de metro asignadas' : 'No metro lines connected'}</div>`;
             } else {
                 pids.forEach(p => {
                     let etaText = '';
@@ -849,7 +841,7 @@ function isStationIntermodal(st) {
                     if (p.etaSec === Infinity || !p.train) {
                         etaText = currentLang === 'es' ? '--:-- min' : '--:-- min';
                     } else if (p.etaSec <= 5 && p.train.state === 'stopped') {
-                        etaText = currentLang === 'es' ? 'EN ANDÃ‰N' : 'AT PLATFORM';
+                        etaText = currentLang === 'es' ? 'EN ANDÉN' : 'AT PLATFORM';
                         isAtPlatform = true;
                     } else if (p.etaSec <= 25) {
                         etaText = currentLang === 'es' ? 'ARRIBANDO' : 'ARRIVING';
@@ -861,16 +853,16 @@ function isStationIntermodal(st) {
 
                     let badgeRouteHtml = '';
                     if (p.expressActive) {
-                        if (p.serviceType === 'red') badgeRouteHtml = `<span class="pids-route-pill red">${currentLang === 'es' ? 'ðŸ”´ Ruta Roja' : 'ðŸ”´ Red Route'}</span>`;
-                        else if (p.serviceType === 'green') badgeRouteHtml = `<span class="pids-route-pill green">${currentLang === 'es' ? 'ðŸŸ¢ Ruta Verde' : 'ðŸŸ¢ Green Route'}</span>`;
-                        else badgeRouteHtml = `<span class="pids-route-pill common">${currentLang === 'es' ? 'ðŸ”´ðŸŸ¢ ComÃºn' : 'ðŸ”´ðŸŸ¢ Common'}</span>`;
+                        if (p.serviceType === 'red') badgeRouteHtml = `<span class="pids-route-pill red">${currentLang === 'es' ? '🔴 Ruta Roja' : '🔴 Red Route'}</span>`;
+                        else if (p.serviceType === 'green') badgeRouteHtml = `<span class="pids-route-pill green">${currentLang === 'es' ? '🟢 Ruta Verde' : '🟢 Green Route'}</span>`;
+                        else badgeRouteHtml = `<span class="pids-route-pill common">${currentLang === 'es' ? '🔴🟢 Común' : '🔴🟢 Common'}</span>`;
                     }
 
                     rowsHtml += `
                         <div class="pids-line-row">
                             <div class="pids-left-info">
                                 <span class="pids-line-tag" style="background:${p.lineColor};">${p.lineName}</span>
-                                <span class="pids-dest-text">âž” ${p.terminus}</span>
+                                <span class="pids-dest-text">➔ ${p.terminus}</span>
                                 ${badgeRouteHtml}
                             </div>
                             <div class="pids-right-eta ${isAtPlatform ? 'at-platform' : ''}">
@@ -884,8 +876,8 @@ function isStationIntermodal(st) {
             let isInterchange = st.lines && st.lines.length >= 2;
             let comboBanner = isInterchange ? `
                 <div class="pids-interchange-banner">
-                    <span class="pids-combo-icon">ðŸ”„</span>
-                    <span>${currentLang === 'es' ? 'EstaciÃ³n Intermodal de CombinaciÃ³n MultilÃ­nea' : 'Multi-Line Metro Transfer Hub'}</span>
+                    <span class="pids-combo-icon">🔄</span>
+                    <span>${currentLang === 'es' ? 'Estación Intermodal de Combinación Multilínea' : 'Multi-Line Metro Transfer Hub'}</span>
                 </div>
             ` : '';
 
@@ -896,7 +888,7 @@ function isStationIntermodal(st) {
                 <div class="pids-display-frame">
                     <div class="pids-top-bar">
                         <div class="pids-live-led"><span class="pids-led-dot"></span> PIDS DIGITAL</div>
-                        <div class="pids-sys-title">${currentLang === 'es' ? 'PRÃ“XIMO TREN' : 'NEXT TRAIN'}</div>
+                        <div class="pids-sys-title">${currentLang === 'es' ? 'PRÓXIMO TREN' : 'NEXT TRAIN'}</div>
                         <div class="pids-clock-text">${clockStr}</div>
                     </div>
                     <div class="pids-lines-container">
@@ -904,8 +896,8 @@ function isStationIntermodal(st) {
                     </div>
                     <div class="pids-occupancy-section">
                         <div class="pids-occ-label">
-                            <span>${currentLang === 'es' ? 'OcupaciÃ³n AndÃ©n:' : 'Platform Load:'} <b style="color:${meterColor};">${curPax} / ${maxCap} pax (${occPct}%)</b></span>
-                            <span style="font-size:0.7rem; color:#aaa;">${occPct >= 85 ? (currentLang === 'es' ? 'âš ï¸ Alta Demanda' : 'âš ï¸ Overcrowded') : (currentLang === 'es' ? 'âœ“ Flujo Normal' : 'âœ“ Normal Flow')}</span>
+                            <span>${currentLang === 'es' ? 'Ocupación Andén:' : 'Platform Load:'} <b style="color:${meterColor};">${curPax} / ${maxCap} pax (${occPct}%)</b></span>
+                            <span style="font-size:0.7rem; color:#aaa;">${occPct >= 85 ? (currentLang === 'es' ? '⚠️ Alta Demanda' : '⚠️ Overcrowded') : (currentLang === 'es' ? '✓ Flujo Normal' : '✓ Normal Flow')}</span>
                         </div>
                         <div class="pids-occ-bar-track">
                             <div class="pids-occ-bar-fill" style="width:${occPct}%; background:${meterColor};"></div>
@@ -924,193 +916,231 @@ function isStationIntermodal(st) {
         }
 
 
-
-/* ==============================================================
-   MAP INTERACTION, STATION PLACEMENT & GHOST PREVIEW
-   ============================================================== */
-
-let ghostMarker = L.circleMarker([0, 0], {
-    radius: 9,
-    color: 'var(--accent)',
-    weight: 2,
-    opacity: 0,
-    fillOpacity: 0,
-    interactive: false
-}).addTo(map);
-
-let ghostLine = L.polyline([], {
-    color: '#fff',
-    weight: 4,
-    dashArray: '10, 10',
-    opacity: 0,
-    interactive: false
-}).addTo(map);
-
-function getSnappedStation(latlng, snapDist = 45) {
-    let closest = null;
-    let minDist = snapDist;
-    allStations.forEach(st => {
-        let d = latlng.distanceTo(st.latlng);
-        if (d < minDist) {
-            minDist = d;
-            closest = st;
+function toggleBuildModeFromHUD() {
+    let btn = document.getElementById('thud-btn-build-general');
+    if (currentMode === 'build') {
+        cancelBuild();
+    } else {
+        cancelBuild();
+        currentMode = 'build';
+        if (btn) {
+            btn.classList.add('active');
+            btn.innerText = tr('thudBuildActive');
         }
-    });
-    return closest;
+        if (typeof playAudioClick === 'function') playAudioClick();
+        showStatusToast(tr('toastBuildHint'), true);
+    }
 }
 
-map.on('mousemove', (e) => {
-    if (typeof isGamePaused !== 'undefined' && isGamePaused) return;
-    if (currentMode !== 'build' && currentMode !== 'edit_station' && currentMode !== 'connecting') return;
-
-    let snappedSt = (currentMode === 'connecting') ? getSnappedStation(e.latlng) : null;
-    let targetLatLng = snappedSt ? snappedSt.latlng : e.latlng;
-
-    ghostMarker.setLatLng(targetLatLng);
-    ghostMarker.setStyle({ color: 'var(--accent)', opacity: 0.8, fillOpacity: 0.4 });
-
-    if (currentMode === 'connecting' && connectSourceStation && selectedLineForConnect) {
-        ghostLine.setLatLngs([connectSourceStation.latlng, targetLatLng]);
-        ghostLine.setStyle({ color: selectedLineForConnect.color, opacity: 0.8 });
+function toggleBuildMode(type) {
+    if (type) activeTransportType = type;
+    let btn = document.getElementById('thud-btn-build-general');
+    if (currentMode === 'build' && (!type || activeTransportType === type)) {
+        cancelBuild();
     } else {
-        ghostLine.setStyle({ opacity: 0 });
-    }
-});
-
-map.on('click', async (e) => {
-    if (typeof isGamePaused !== 'undefined' && isGamePaused) return;
-
-    if (e.originalEvent && e.originalEvent._stationHandled) {
-        return;
-    }
-
-    if (currentMode === 'connecting') {
-        let clickedStation = getSnappedStation(e.latlng);
-        if (clickedStation && connectSourceStation && clickedStation.id !== connectSourceStation.id) {
-            completeStationConnection(connectSourceStation, clickedStation, selectedLineForConnect);
-        } else {
-            cancelBuild();
+        cancelBuild();
+        currentMode = 'build';
+        if (type) activeTransportType = type;
+        if (btn) {
+            btn.classList.add('active');
+            btn.innerText = tr('thudBuildActive');
         }
-        return;
+        if (typeof playAudioClick === 'function') playAudioClick();
+        showStatusToast(tr('toastBuildHint'), true);
     }
+}
 
-    if (currentMode === 'idle') {
-        closeStationPopup();
-        if (typeof curveHandlesLayer !== 'undefined') curveHandlesLayer.clearLayers();
+function toggleBuildFromNavbar(e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    let panel = document.getElementById('transport-hud-panel');
+    if (!panel || panel.style.display !== 'block') {
+        openTransportPanel(activeTransportType || 'metro');
+    } else {
+        toggleBuildModeFromHUD();
+    }
+}
 
-        // If Road Hierarchy & Demand Filter is active, click inspects street/zone density
-        if (typeof isDensityFilterActive !== 'undefined' && isDensityFilterActive) {
-            if (typeof isPointInActiveZone === 'function' && isPointInActiveZone(e.latlng)) {
-                inspectDensityPoint(e.latlng);
-                return;
+        let ghostMarker = L.circleMarker([0,0], { radius: 9, color: '#fff', weight: 2, opacity: 0, fillOpacity: 0, interactive: false }).addTo(map);
+        let ghostLine = L.polyline([], { color: '#fff', weight: 4, dashArray: '10, 10', opacity: 0, interactive: false }).addTo(map);
+        let stationToEditObj = null;
+
+        function getSnappedStation(latlng) {
+            let snapDist = 180;
+            let closest = null; 
+            let minDist = snapDist;
+            allStations.forEach(st => {
+                let d = latlng.distanceTo(st.latlng);
+                if (d < minDist) { minDist = d; closest = st; }
+            });
+            return closest;
+        }
+
+        map.on('mousemove', (e) => {
+            if ((currentMode !== 'build' && currentMode !== 'edit_station' && currentMode !== 'connecting')) return;
+
+            let snappedSt = (currentMode === 'connecting') ? getSnappedStation(e.latlng) : null;
+            let targetLatLng = snappedSt ? snappedSt.latlng : e.latlng;
+
+            ghostMarker.setLatLng(targetLatLng);
+            ghostMarker.setStyle({ color: 'var(--accent)', opacity: 0.8, fillOpacity: 0.4 });
+
+            if (currentMode === 'connecting' && connectSourceStation && selectedLineForConnect) {
+                ghostLine.setLatLngs([connectSourceStation.latlng, targetLatLng]);
+                ghostLine.setStyle({ color: selectedLineForConnect.color, opacity: 0.8 });
+            } else {
+                ghostLine.setStyle({ opacity: 0 });
+            }
+        });
+
+        function handleBlockedZoneClick(e) {
+            if (currentLevel < 10) {
+                let nextLvl = ZONES[currentLevel];
+                let curStations = allStations.filter(s => s.type === 'metro').length;
+                let curBus = transportLines.bus.length;
+
+                L.popup({ className: 'custom-popup' })
+                    .setLatLng(e.latlng)
+                    .setContent(`
+                        <div style="text-align:center; padding:5px;">
+                            <b style="color:var(--danger-pastel)">${tr('blockedTitle')}</b><br>
+                            ${tr('blockedNext', {name: nextLvl.name})}<br><br>
+                            <i>${tr('blockedReq', {currSt: curStations, reqSt: nextLvl.req.st, currBus: curBus, reqBus: nextLvl.req.bus})}</i>
+                        </div>
+                    `).openOn(map);
             }
         }
 
-        if (typeof isPointInActiveZone === 'function' && !isPointInActiveZone(e.latlng) && currentLevel < 10) {
-            if (typeof handleBlockedZoneClick === 'function') handleBlockedZoneClick(e);
-        }
-        return;
-    }
+        map.on('click', async (e) => {
+            if (isGamePaused) return;
 
-    let targetLatLng = e.latlng;
+            if (e.originalEvent && e.originalEvent._stationHandled) {
+                return;
+            }
 
-    if (typeof isPointInActiveZone === 'function' && !isPointInActiveZone(targetLatLng)) {
-        let nextLvl = ZONES[currentLevel];
-        showStatusToast(
-            `âš ï¸ <b>${tr('blockedTitle')}</b> â€” ${tr('blockedNext', {name: nextLvl ? nextLvl.name : ''})}`,
-            false,
-            'var(--danger-pastel)'
-        );
-        return;
-    }
+            if (currentMode === 'connecting') {
+                let clickedStation = getSnappedStation(e.latlng);
+                if (clickedStation && connectSourceStation && clickedStation.id !== connectSourceStation.id) {
+                    completeStationConnection(connectSourceStation, clickedStation, selectedLineForConnect);
+                } else {
+                    cancelBuild();
+                }
+                return;
+            }
 
-    if (currentMode === 'edit_station') {
-        if (!stationToEditObj) { cancelBuild(); return; }
-        stationToEditObj.latlng = targetLatLng;
-        stationToEditObj.marker.setLatLng(targetLatLng);
-        let pData = (typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(targetLatLng) : null;
-        stationToEditObj.densityScore = pData ? pData.density : Math.max(5, 100 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 150)); 
+            if (currentMode === 'idle') {
+                closeStationPopup();
+                curveHandlesLayer.clearLayers();
 
-        await rebuildLinesPolylines();
-        cancelBuild();
-        showStatusToast("âœ“ EstaciÃ³n reubicada.", false, 'var(--success-pastel)');
-        return;
-    }
+                // If Road Hierarchy & Demand Filter is active, click inspects street/zone density
+                if (typeof isDensityFilterActive !== 'undefined' && isDensityFilterActive) {
+                    if (isPointInActiveZone(e.latlng)) {
+                        inspectDensityPoint(e.latlng);
+                        return;
+                    }
+                }
 
-    if (currentMode === 'build') {
-        // Minimum distance check between metro stations ("asi no se puede colocar otra al lado")
-        if (activeTransportType === 'metro') {
-            let nearbyMetro = allStations.find(s => s.type === 'metro' && targetLatLng.distanceTo(s.latlng) < 280);
-            if (nearbyMetro) {
+                if (!isPointInActiveZone(e.latlng) && currentLevel < 10) {
+                    handleBlockedZoneClick(e);
+                }
+                return;
+            }
+
+            let targetLatLng = e.latlng;
+
+            if (!isPointInActiveZone(targetLatLng)) {
+                let nextLvl = ZONES[currentLevel];
                 showStatusToast(
-                    currentLang === 'es'
-                        ? `âš ï¸ Ãrea ya cubierta por ${nearbyMetro.name}. Distancia mÃ­nima de 280m entre estaciones requerida para evitar canibalizar demanda.`
-                        : `âš ï¸ Area already covered by ${nearbyMetro.name}. Stations must be at least 280m apart to avoid demand cannibalization.`,
+                    `⚠️ <b>${tr('blockedTitle')}</b> — ${tr('blockedNext', {name: nextLvl.name})}`,
                     false,
                     'var(--danger-pastel)'
                 );
                 return;
             }
-        }
 
-        let cost = activeTransportType === 'metro' ? 4500000 : 1200000;
-        if (money < cost) {
-            showStatusToast(`âš ï¸ Fondos insuficientes ($${cost.toLocaleString()} requeridos).`, false, 'var(--danger-pastel)');
-            return;
-        }
+            if (currentMode === 'edit_station') {
+                stationToEditObj.latlng = targetLatLng;
+                stationToEditObj.marker.setLatLng(targetLatLng);
+                let pData = (typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(targetLatLng) : null;
+                stationToEditObj.densityScore = pData ? pData.density : Math.max(5, 100 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 150)); 
 
-        money -= cost;
-        updateMoneyDisplay();
-
-        let stId = 'st_' + Date.now();
-        let defaultName = (activeTransportType === 'metro' ? 'EstaciÃ³n ' : 'Parada ') + (allStations.length + 1);
-
-        let stationIcon = L.divIcon({
-            className: 'station-composite-wrapper',
-            html: `
-                <div class="station-badge-group" id="badge-${stId}">ðŸ‘¤ 0</div>
-                <div class="station-white-dot" id="dot-${stId}"></div>
-            `,
-            iconSize: [0, 0],
-            iconAnchor: [0, 0]
-        });
-
-        let marker = L.marker(targetLatLng, {
-            icon: stationIcon,
-            interactive: true,
-            zIndexOffset: 2500
-        }).addTo(map);
-
-        let newStation = {
-            id: stId,
-            name: defaultName,
-            type: activeTransportType,
-            latlng: targetLatLng,
-            marker: marker,
-            passengersByLine: {},
-            level: 1,
-            revMultiplier: 1.0,
-            attrMultiplier: 1.0,
-            revenueThisMonth: 0,
-            expressType: 'common',
-            lines: [],
-            densityScore: ((typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(targetLatLng).density : Math.max(5, 100 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 150)))
-        };
-
-        marker.on('click', (ev) => {
-            if (ev && ev.originalEvent) {
-                ev.originalEvent._stationHandled = true;
-                L.DomEvent.stopPropagation(ev.originalEvent);
+                await rebuildLinesPolylines();
+                cancelBuild();
+                showStatusToast("✓ Estación reubicada.", false, 'var(--success-pastel)');
+                return;
             }
-            handleStationClick(newStation);
-        });
 
-        allStations.push(newStation);
-        if (typeof isDensityFilterActive !== 'undefined' && isDensityFilterActive && typeof renderDensityMapFilter === 'function') {
-            renderDensityMapFilter();
-        }
-        cancelBuild();
-        if (typeof checkLevelProgression === 'function') checkLevelProgression();
-        showStatusToast(`âœ“ EstaciÃ³n construida con Ã©xito. Haz clic en ella para conectarla a una lÃ­nea.`, false, 'var(--success-pastel)');
-    }
-});
+            if (currentMode === 'build') {
+                // Minimum distance check between metro stations ("asi no se puede colocar otra al lado")
+                if (activeTransportType === 'metro') {
+                    let nearbyMetro = allStations.find(s => s.type === 'metro' && targetLatLng.distanceTo(s.latlng) < 280);
+                    if (nearbyMetro) {
+                        showStatusToast(
+                            currentLang === 'es'
+                                ? `⚠️ Área ya cubierta por ${nearbyMetro.name}. Distancia mínima de 280m entre estaciones requerida para evitar canibalizar demanda.`
+                                : `⚠️ Area already covered by ${nearbyMetro.name}. Stations must be at least 280m apart to avoid demand cannibalization.`,
+                            false,
+                            'var(--danger-pastel)'
+                        );
+                        return;
+                    }
+                }
+
+                let cost = activeTransportType === 'metro' ? 4500000 : 1200000;
+                if (money < cost) {
+                    showStatusToast(`⚠️ Insufficient funds ($${cost.toLocaleString()} required).`, false, 'var(--danger-pastel)');
+                    return;
+                }
+
+                money -= cost;
+                document.getElementById('ui-money').innerText = formatFixedCurrency(money);
+
+                let stId = 'st_' + Date.now();
+                let defaultName = (activeTransportType === 'metro' ? 'Estación ' : 'Parada ') + (allStations.length + 1);
+
+                let stationIcon = L.divIcon({
+                    className: 'station-composite-wrapper',
+                    html: `
+                        <div class="station-badge-group" id="badge-${stId}">👤 0</div>
+                        <div class="station-white-dot" id="dot-${stId}"></div>
+                    `,
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                });
+
+                let marker = L.marker(targetLatLng, {
+                    icon: stationIcon,
+                    interactive: true,
+                    zIndexOffset: 2500
+                }).addTo(map);
+
+                let newStation = {
+                    id: stId,
+                    name: defaultName,
+                    type: activeTransportType,
+                    latlng: targetLatLng,
+                    marker: marker,
+                    passengersByLine: {},
+                    level: 1,
+                    revMultiplier: 1.0,
+                    attrMultiplier: 1.0,
+                    revenueThisMonth: 0,
+                    expressType: 'common',
+                    lines: [],
+                    densityScore: ((typeof getPointDensityAndAttraction === 'function') ? getPointDensityAndAttraction(targetLatLng).density : Math.max(5, 100 - (targetLatLng.distanceTo(SANTIAGO_CENTER) / 150)))
+                };
+
+                marker.on('click', (ev) => {
+                    if (ev && ev.originalEvent) {
+                        ev.originalEvent._stationHandled = true;
+                        L.DomEvent.stopPropagation(ev.originalEvent);
+                    }
+                    handleStationClick(newStation);
+                });
+
+                allStations.push(newStation);
+                if (isDensityFilterActive) renderDensityMapFilter();
+                cancelBuild();
+                checkLevelProgression();
+                showStatusToast(`✓ Estación construida con éxito. Haz clic en ella para conectarla a una línea.`, false, 'var(--success-pastel)');
+            }
+        });

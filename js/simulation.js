@@ -470,7 +470,6 @@ let MAX_CARS = 380;
                 }
 
                 // SUBWAY TRAINS
-                trainHitchLayer.clearLayers();
 
                 let mPerPx = map.distance(map.containerPointToLatLng([0, 0]), map.containerPointToLatLng([1, 0]));
 
@@ -661,11 +660,19 @@ let MAX_CARS = 380;
                             }
                         }
 
+                        if (!t.hitchPolylines) {
+                            t.hitchPolylines = [
+                                L.polyline([], { color: '#aaaaaa', weight: 2, opacity: 0.8, interactive: false }).addTo(trainHitchLayer),
+                                L.polyline([], { color: '#aaaaaa', weight: 2, opacity: 0.8, interactive: false }).addTo(trainHitchLayer)
+                            ];
+                        }
+
                         for (let w = 0; w < 2; w++) {
-                            if (wagonCoords[w] && wagonCoords[w+1]) {
-                                L.polyline([wagonCoords[w], wagonCoords[w+1]], {
-                                    color: '#aaaaaa', weight: 2, opacity: 0.8, interactive: false
-                                }).addTo(trainHitchLayer);
+                            if (wagonCoords[w] && wagonCoords[w+1] && t.state !== 'depot' && t.state !== 'waiting_dispatch') {
+                                t.hitchPolylines[w].setLatLngs([wagonCoords[w], wagonCoords[w+1]]);
+                                t.hitchPolylines[w].setStyle({ opacity: 0.8 });
+                            } else if (t.hitchPolylines[w]) {
+                                t.hitchPolylines[w].setStyle({ opacity: 0 });
                             }
                         }
                     });

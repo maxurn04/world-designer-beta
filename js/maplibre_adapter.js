@@ -18,6 +18,25 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
+    function resolveColor(c, fallback = '#ffffff') {
+        if (!c) return fallback;
+        if (c === 'var(--accent)') return '#ffcc00';
+        if (c === 'var(--danger-pastel)') return '#ff6961';
+        if (c === 'var(--success-pastel)') return '#77dd77';
+        if (c === 'var(--info-pastel)') return '#6ec6ff';
+        if (c === 'var(--neutral-gray)') return '#b0b0b8';
+        if (c === 'var(--neutral-station)') return '#888899';
+        if (typeof c === 'string' && c.startsWith('var(')) {
+            try {
+                const varName = c.slice(4, -1).trim();
+                const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+                if (val) return val;
+            } catch(e) {}
+            return fallback;
+        }
+        return c;
+    }
+
     class LatLng {
         constructor(lat, lng) {
             if (Array.isArray(lat)) {
@@ -266,7 +285,7 @@
             Object.assign(this.options, opts);
             if (this._map && this._added) {
                 const ml = this._map.maplibre || this._map;
-                if (opts.color && ml.getLayer(this.layerId)) ml.setPaintProperty(this.layerId, 'line-color', opts.color);
+                if (opts.color && ml.getLayer(this.layerId)) ml.setPaintProperty(this.layerId, 'line-color', resolveColor(opts.color, '#ffcc00'));
                 if (opts.weight && ml.getLayer(this.layerId)) ml.setPaintProperty(this.layerId, 'line-width', opts.weight);
                 if (opts.opacity !== undefined && ml.getLayer(this.layerId)) ml.setPaintProperty(this.layerId, 'line-opacity', opts.opacity);
             }
@@ -289,7 +308,7 @@
                     }
                 });
                 const paint = {
-                    'line-color': this.options.color || '#ffcc00',
+                    'line-color': resolveColor(this.options.color, '#ffcc00'),
                     'line-width': this.options.weight || 4,
                     'line-opacity': this.options.opacity !== undefined ? this.options.opacity : 0.9
                 };
@@ -367,7 +386,7 @@
                     type: 'fill',
                     source: this.sourceId,
                     paint: {
-                        'fill-color': this.options.fillColor || '#050508',
+                        'fill-color': resolveColor(this.options.fillColor, '#050508'),
                         'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.88
                     }
                 });
@@ -441,7 +460,7 @@
                     type: 'fill',
                     source: this.sourceId,
                     paint: {
-                        'fill-color': this.options.fillColor || this.options.color || '#00e5ff',
+                        'fill-color': resolveColor(this.options.fillColor || this.options.color, '#00e5ff'),
                         'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.2
                     }
                 });
@@ -450,7 +469,7 @@
                     type: 'line',
                     source: this.sourceId,
                     paint: {
-                        'line-color': this.options.color || '#00e5ff',
+                        'line-color': resolveColor(this.options.color, '#00e5ff'),
                         'line-width': this.options.weight || 2,
                         'line-dasharray': [2, 2]
                     }

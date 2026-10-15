@@ -1,7 +1,8 @@
 /* ==============================================================
    MAPLIBRE GL JS 3D ENGINE & LEAFLET COMPATIBILITY ADAPTER
    Provides 60 FPS WebGL, OSM 3D buildings, 2.5D tilt/rotation,
-   and seamless compatibility with existing game simulation code.
+   GPU car simulation with 3D building occlusion, and full
+   compatibility with existing game simulation code.
    ============================================================== */
 
 (function(window) {
@@ -77,6 +78,193 @@
         };
     }
 
+    // High-performance Mercator coordinate projection for WebGL GPU rendering
+    function lngLatToMercator(lng, lat) {
+        const x = (lng + 180) / 360;
+        const sin = Math.sin(lat * Math.PI / 180);
+        const y = 0.5 - 0.25 * Math.log((1 + sin) / (1 - sin)) / Math.PI;
+        return [x, y];
+    }
+
+    /* ==============================================================
+       WEBGL TRAFFIC CAR OCCLUSION & RENDERING ENGINE
+       Renders 350+ traffic cars directly inside WebGL with depth testing
+       so cars naturally disappear behind 3D buildings at 60 FPS.
+       ============================================================== */
+    class TrafficCarManager {
+        constructor() {
+            this.maxCars = 600;
+            // 3 floats per car: mercX, mercY, alpha
+            this.positions = new Float32Array(this.maxCars * 3);
+            this.cars = new Map();
+            this.freeIndices = [];
+            for (let i = this.maxCars - 1; i >= 0; i--) this.freeIndices.push(i);
+            this.gl = null;
+            this.program = null;
+            this.buffer = null;
+            this.map = null;
+            this.uMatrix = null;
+            this.uSize = null;
+            this.uColor = null;
+            this.aPos = null;
+            this.aAlpha = null;
+            this.isDirty = false;
+        }
+
+        addCar(marker, latlng) {
+            if (this.freeIndices.length === 0) return -1;
+            const idx = this.freeIndices.pop();
+            this.cars.set(marker, idx);
+            this.updateCarPos(marker, latlng, 1.0);
+            return idx;
+        }
+
+        removeCar(marker) {
+            if (!this.cars.has(marker)) return;
+            const idx = this.cars.get(marker);
+            this.cars.delete(marker);
+            this.positions[idx * 3 + 2] = 0.0; // alpha = 0
+            this.freeIndices.push(idx);
+            this.isDirty = true;
+            if (this.map && typeof this.map.triggerRepaint === 'function') {
+                this.map.triggerRepaint();
+            }
+        }
+
+        updateCarPos(marker, latlng, opacity = 1.0) {
+            if (!this.cars.has(marker)) {
+                this.addCar(marker, latlng);
+                return;
+            }
+            const idx = this.cars.get(marker);
+            const lat = latlng.lat !== undefined ? latlng.lat : latlng[0];
+            const lng = latlng.lng !== undefined ? latlng.lng : latlng[1];
+            const [x, y] = lngLatToMercator(lng, lat);
+            this.positions[idx * 3] = x;
+            this.positions[idx * 3 + 1] = y;
+            this.positions[idx * 3 + 2] = opacity;
+            this.isDirty = true;
+            if (this.map && typeof this.map.triggerRepaint === 'function') {
+                this.map.triggerRepaint();
+            }
+        }
+
+        setCarOpacity(marker, opacity) {
+            if (!this.cars.has(marker)) return;
+            const idx = this.cars.get(marker);
+            this.positions[idx * 3 + 2] = opacity;
+            this.isDirty = true;
+            if (this.map && typeof this.map.triggerRepaint === 'function') {
+                this.map.triggerRepaint();
+            }
+        }
+
+        getCustomLayer() {
+            const self = this;
+            return {
+                id: 'webgl-traffic-cars',
+                type: 'custom',
+                renderingMode: '3d',
+                onAdd(map, gl) {
+                    self.map = map;
+                    self.gl = gl;
+                    if (!gl || !gl.createShader) return;
+
+                    const vsSource = `
+                        attribute vec2 a_pos;
+                        attribute float a_alpha;
+                        uniform mat4 u_matrix;
+                        uniform float u_size;
+                        varying float v_alpha;
+
+                        void main() {
+                            v_alpha = a_alpha;
+                            gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
+                            gl_PointSize = u_size;
+                        }
+                    `;
+
+                    const fsSource = `
+                        precision mediump float;
+                        varying float v_alpha;
+                        uniform vec3 u_color;
+
+                        void main() {
+                            if (v_alpha <= 0.01) discard;
+                            vec2 coord = gl_PointCoord - vec2(0.5);
+                            if (abs(coord.x) > 0.46 || abs(coord.y) > 0.46) discard;
+                            gl_FragColor = vec4(u_color, v_alpha);
+                        }
+                    `;
+
+                    function createShader(type, src) {
+                        const shader = gl.createShader(type);
+                        gl.shaderSource(shader, src);
+                        gl.compileShader(shader);
+                        return shader;
+                    }
+
+                    const vs = createShader(gl.VERTEX_SHADER, vsSource);
+                    const fs = createShader(gl.FRAGMENT_SHADER, fsSource);
+                    const prog = gl.createProgram();
+                    gl.attachShader(prog, vs);
+                    gl.attachShader(prog, fs);
+                    gl.linkProgram(prog);
+                    self.program = prog;
+
+                    self.aPos = gl.getAttribLocation(prog, 'a_pos');
+                    self.aAlpha = gl.getAttribLocation(prog, 'a_alpha');
+                    self.uMatrix = gl.getUniformLocation(prog, 'u_matrix');
+                    self.uSize = gl.getUniformLocation(prog, 'u_size');
+                    self.uColor = gl.getUniformLocation(prog, 'u_color');
+
+                    self.buffer = gl.createBuffer();
+                    gl.bindBuffer(gl.ARRAY_BUFFER, self.buffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, self.positions, gl.DYNAMIC_DRAW);
+                },
+                render(gl, matrix) {
+                    if (!self.program || self.cars.size === 0) return;
+
+                    gl.useProgram(self.program);
+
+                    gl.bindBuffer(gl.ARRAY_BUFFER, self.buffer);
+                    if (self.isDirty) {
+                        gl.bufferSubData(gl.ARRAY_BUFFER, 0, self.positions);
+                        self.isDirty = false;
+                    }
+
+                    gl.enableVertexAttribArray(self.aPos);
+                    gl.vertexAttribPointer(self.aPos, 2, gl.FLOAT, false, 12, 0);
+
+                    gl.enableVertexAttribArray(self.aAlpha);
+                    gl.vertexAttribPointer(self.aAlpha, 1, gl.FLOAT, false, 12, 8);
+
+                    if (!(matrix instanceof Float32Array)) {
+                        if (!self._matrix32) self._matrix32 = new Float32Array(16);
+                        self._matrix32.set(matrix);
+                        gl.uniformMatrix4fv(self.uMatrix, false, self._matrix32);
+                    } else {
+                        gl.uniformMatrix4fv(self.uMatrix, false, matrix);
+                    }
+
+                    const zoom = self.map ? self.map.getZoom() : 14;
+                    const pointSize = Math.max(3.0, Math.min(6.5, 3.0 + (zoom - 13.0) * 0.9));
+                    gl.uniform1f(self.uSize, pointSize);
+                    gl.uniform3f(self.uColor, 1.0, 1.0, 1.0);
+
+                    gl.enable(gl.BLEND);
+                    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+                    // 3D Depth testing: enables natural building occlusion!
+                    gl.enable(gl.DEPTH_TEST);
+                    gl.depthFunc(gl.LEQUAL);
+
+                    gl.drawArrays(gl.POINTS, 0, self.maxCars);
+                }
+            };
+        }
+    }
+
     class LatLng {
         constructor(lat, lng) {
             if (Array.isArray(lat)) {
@@ -138,42 +326,64 @@
             this.id = 'marker-' + (_idSeq++);
             this.latlng = new LatLng(latlng);
             this.options = options;
-            this.element = document.createElement('div');
-            this.element.className = 'maplibre-marker-wrapper ' + (options.className || '');
-            
-            if (options.zIndexOffset) {
-                this.element.style.zIndex = options.zIndexOffset;
-            }
-            if (options.interactive === false) {
-                this.element.style.pointerEvents = 'none';
-            }
-            if (options.icon && options.icon.html) {
-                this.element.innerHTML = options.icon.html;
-                if (options.icon.className) {
-                    this.element.classList.add(options.icon.className);
-                }
-            }
+            this.isCar = (options.icon && options.icon.className && options.icon.className.includes('car-wrapper')) || options.isCar;
             this._marker = null;
             this._map = null;
             this._parentGroup = null;
             this._handlers = {};
+            this._proxyElement = null;
 
-            ['click', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].forEach(evtName => {
-                this.element.addEventListener(evtName, (ev) => {
-                    if (this._handlers[evtName]) {
-                        const fakeEv = {
-                            latlng: this.latlng,
-                            originalEvent: ev,
-                            target: this
-                        };
-                        this._handlers[evtName].forEach(fn => fn(fakeEv));
+            if (!this.isCar) {
+                this.element = document.createElement('div');
+                this.element.className = 'maplibre-marker-wrapper ' + (options.className || '');
+                
+                if (options.zIndexOffset) {
+                    this.element.style.zIndex = options.zIndexOffset;
+                }
+                if (options.interactive === false) {
+                    this.element.style.pointerEvents = 'none';
+                }
+                if (options.icon && options.icon.html) {
+                    this.element.innerHTML = options.icon.html;
+                    if (options.icon.className) {
+                        this.element.classList.add(options.icon.className);
                     }
+                }
+
+                ['click', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].forEach(evtName => {
+                    this.element.addEventListener(evtName, (ev) => {
+                        if (this._handlers[evtName]) {
+                            const fakeEv = {
+                                latlng: this.latlng,
+                                originalEvent: ev,
+                                target: this
+                            };
+                            this._handlers[evtName].forEach(fn => fn(fakeEv));
+                        }
+                    });
                 });
-            });
+            }
+        }
+        _getTrafficManager() {
+            if (this._map) {
+                if (this._map.trafficCarManager) return this._map.trafficCarManager;
+                if (this._map._map && this._map._map.trafficCarManager) return this._map._map.trafficCarManager;
+            }
+            if (this._parentGroup) {
+                if (this._parentGroup._map && this._parentGroup._map.trafficCarManager) return this._parentGroup._map.trafficCarManager;
+                if (this._parentGroup._map && this._parentGroup._map._map && this._parentGroup._map._map.trafficCarManager) return this._parentGroup._map._map.trafficCarManager;
+            }
+            if (window.map && window.map.trafficCarManager) return window.map.trafficCarManager;
+            return null;
         }
         setLatLng(latlng) {
             this.latlng = new LatLng(latlng);
-            if (this._marker) {
+            if (this.isCar) {
+                const tm = this._getTrafficManager();
+                if (tm) {
+                    tm.updateCarPos(this, this.latlng, 1.0);
+                }
+            } else if (this._marker) {
                 this._marker.setLngLat([this.latlng.lng, this.latlng.lat]);
             }
             return this;
@@ -183,17 +393,43 @@
         }
         setIcon(icon) {
             this.options.icon = icon;
-            if (icon && icon.html) {
+            if (!this.isCar && this.element && icon && icon.html) {
                 this.element.innerHTML = icon.html;
                 if (icon.className) this.element.className = 'maplibre-marker-wrapper ' + icon.className;
             }
             return this;
         }
         getElement() {
+            if (this.isCar) {
+                if (!this._proxyElement) {
+                    this._proxyElement = {
+                        classList: {
+                            add: (cls) => {
+                                if (cls === 'car-despawn') {
+                                    const tm = this._getTrafficManager();
+                                    if (tm) {
+                                        tm.setCarOpacity(this, 0.0);
+                                    }
+                                }
+                            },
+                            remove: () => {}
+                        },
+                        style: {}
+                    };
+                }
+                return this._proxyElement;
+            }
             return this.element;
         }
         setOpacity(op) {
-            this.element.style.opacity = op;
+            if (this.isCar) {
+                const tm = this._getTrafficManager();
+                if (tm) {
+                    tm.setCarOpacity(this, op);
+                }
+            } else if (this.element) {
+                this.element.style.opacity = op;
+            }
             return this;
         }
         on(event, handler) {
@@ -231,6 +467,15 @@
             }
             this._map = targetMap;
             if (targetMap && targetMap._layers) targetMap._layers.add(this);
+
+            if (this.isCar) {
+                const tm = this._getTrafficManager();
+                if (tm) {
+                    tm.addCar(this, this.latlng);
+                }
+                return this;
+            }
+
             const ml = targetMap.maplibre || targetMap;
             if (!this._marker) {
                 this._marker = new maplibregl.Marker({
@@ -245,6 +490,12 @@
             return this;
         }
         remove() {
+            if (this.isCar) {
+                const tm = this._getTrafficManager();
+                if (tm) {
+                    tm.removeCar(this);
+                }
+            }
             if (this._map && this._map._layers) this._map._layers.delete(this);
             if (this._parentGroup) this._parentGroup._layers.delete(this);
             if (this._marker) {
@@ -287,7 +538,7 @@
             const op = this.options.opacity !== undefined ? Number(this.options.opacity) : 1;
             const fillOp = this.options.fillOpacity !== undefined ? Number(this.options.fillOpacity) : 0.5;
 
-            // Completely hide the DOM element if opacity is 0 or fillOpacity is 0
+            // Completely hide the DOM element if opacity is 0
             if (op <= 0 || (this.options.opacity === 0 && (this.options.fillOpacity === undefined || this.options.fillOpacity === 0))) {
                 this.element.style.display = 'none';
                 this.element.style.opacity = '0';
@@ -578,6 +829,48 @@
                 }
             });
         }
+        setLatLngs(rings) {
+            this.rings = rings;
+            if (this._map && this._added) {
+                const ml = this._map.maplibre || this._map;
+                const src = ml.getSource(this.sourceId);
+                if (src) {
+                    let coordsRings = this.rings;
+                    if (coordsRings.length > 0 && (typeof coordsRings[0][0] === 'number' || coordsRings[0].lat !== undefined)) {
+                        coordsRings = [coordsRings];
+                    }
+                    const coords = coordsRings.map(ring => {
+                        let r = ring.map(pt => {
+                            if (Array.isArray(pt)) return [Number(pt[1]), Number(pt[0])];
+                            if (pt && typeof pt.lat === 'number') return [Number(pt.lng), Number(pt.lat)];
+                            return [0, 0];
+                        });
+                        if (r.length > 0) {
+                            let first = r[0], last = r[r.length - 1];
+                            if (first[0] !== last[0] || first[1] !== last[1]) {
+                                r.push([first[0], first[1]]);
+                            }
+                        }
+                        return r;
+                    });
+                    src.setData(makePolygonFeature(coords));
+                }
+            }
+            return this;
+        }
+        setStyle(opts) {
+            Object.assign(this.options, opts);
+            if (this._map && this._added) {
+                const ml = this._map.maplibre || this._map;
+                if (opts.fillColor && ml.getLayer(this.layerId)) {
+                    ml.setPaintProperty(this.layerId, 'fill-color', resolveColor(opts.fillColor, '#050508'));
+                }
+                if (opts.fillOpacity !== undefined && ml.getLayer(this.layerId)) {
+                    ml.setPaintProperty(this.layerId, 'fill-opacity', opts.fillOpacity);
+                }
+            }
+            return this;
+        }
         addTo(targetMap) {
             if (isLayerGroup(targetMap)) {
                 targetMap.addLayer(this);
@@ -612,15 +905,34 @@
                     type: 'geojson',
                     data: makePolygonFeature(coords)
                 });
-                ml.addLayer({
-                    id: this.layerId,
-                    type: 'fill',
-                    source: this.sourceId,
-                    paint: {
-                        'fill-color': resolveColor(this.options.fillColor, '#050508'),
-                        'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.88
-                    }
-                });
+
+                // Active Commune Mask (Fog of War):
+                // Renders dark ground fill UNDER 3D buildings and WebGL traffic cars.
+                // Because 3D buildings (such as Gran Torre Santiago / Costanera Center) render AFTER
+                // the mask, their full 3D geometry rises cleanly OVER the dark blocked zone without any slicing!
+                if (this.options.pane === 'maskPane') {
+                    const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
+                    ml.addLayer({
+                        id: this.layerId,
+                        type: 'fill',
+                        source: this.sourceId,
+                        paint: {
+                            'fill-color': resolveColor(this.options.fillColor, '#050508'),
+                            'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.88
+                        }
+                    }, beforeBuildingsId);
+                } else {
+                    ml.addLayer({
+                        id: this.layerId,
+                        type: 'fill',
+                        source: this.sourceId,
+                        paint: {
+                            'fill-color': resolveColor(this.options.fillColor, '#050508'),
+                            'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.88
+                        }
+                    });
+                }
+
                 if (this._handlers['click'] && this._handlers['click'].length > 0) {
                     this._registerLayerClick(ml);
                 }
@@ -861,7 +1173,7 @@
                         [sw.lng, sw.lat]
                     ]
                 });
-                const beforeId = ml.getLayer('3d-buildings') ? '3d-buildings' : undefined;
+                const beforeId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
                 ml.addLayer({
                     id: this.layerId,
                     type: 'raster',
@@ -1053,6 +1365,7 @@
             this._layers = new Set();
             this._panes = {};
             this._activePopup = null;
+            this.trafficCarManager = new TrafficCarManager();
 
             this.maplibre = new maplibregl.Map({
                 container: containerId,
@@ -1086,9 +1399,7 @@
                     this.maplibre.setLayoutProperty('building', 'visibility', 'none');
                 }
 
-                // Place 3D buildings AFTER all road/highway/railway layers, but BEFORE place labels.
-                // This ensures roads and highways are drawn on the ground UNDER the buildings,
-                // making building walls 100% solid and occluding everything behind them!
+                // Locate beforeId right before place labels
                 const layers = this.maplibre.getStyle().layers;
                 let targetBeforeId = null;
                 for (let i = 0; i < layers.length; i++) {
@@ -1099,57 +1410,116 @@
                 }
 
                 const sourceName = this.maplibre.getSource('openmaptiles') ? 'openmaptiles' : null;
-                if (sourceName && !this.maplibre.getLayer('3d-buildings')) {
-                    // Crisp directional sun lighting to give solid contrast between rooftops and walls
-                    this.maplibre.setLight({
-                        anchor: 'viewport',
-                        color: '#ffffff',
-                        intensity: 0.55,
-                        position: [1.25, 120, 50]
-                    });
+                if (sourceName) {
+                    // 1. Add WebGL traffic cars layer BEFORE 3D buildings
+                    // This allows 3D buildings to occlude cars that drive behind them!
+                    if (!this.maplibre.getLayer('webgl-traffic-cars')) {
+                        this.maplibre.addLayer(this.trafficCarManager.getCustomLayer(), targetBeforeId);
+                    }
 
-                    this.maplibre.addLayer({
-                        'id': '3d-buildings',
-                        'source': sourceName,
-                        'source-layer': 'building',
-                        'type': 'fill-extrusion',
-                        'minzoom': 13.0,
-                        'paint': {
-                            'fill-extrusion-color': [
-                                'interpolate',
-                                ['linear'],
-                                ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
-                                0, '#30344a',
-                                20, '#3d4361',
-                                50, '#4e567d',
-                                100, '#636e9e',
-                                200, '#7b89c4',
-                                300, '#93a3e6'
-                            ],
-                            'fill-extrusion-height': [
-                                'interpolate',
-                                ['linear'],
-                                ['zoom'],
-                                13.0, 0,
-                                14.2, ['coalesce', ['get', 'render_height'], ['get', 'height'], 12]
-                            ],
-                            'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-                            // 100% solid and completely opaque at normal/distance view;
-                            // smoothly transitions to semi-transparent only when zooming in very close (zoom >= 17.5)
-                            'fill-extrusion-opacity': [
-                                'interpolate',
-                                ['linear'],
-                                ['zoom'],
-                                13.0, 1.0,
-                                16.8, 1.0,
-                                17.8, 0.72,
-                                19.0, 0.45
-                            ]
+                    // 2. Add solid 3D OSM Buildings with directional sunlight
+                    if (!this.maplibre.getLayer('3d-buildings')) {
+                        this.maplibre.setLight({
+                            anchor: 'viewport',
+                            color: '#ffffff',
+                            intensity: 0.55,
+                            position: [1.25, 120, 50]
+                        });
+
+                        this.maplibre.addLayer({
+                            'id': '3d-buildings',
+                            'source': sourceName,
+                            'source-layer': 'building',
+                            'type': 'fill-extrusion',
+                            'minzoom': 13.0,
+                            'paint': {
+                                'fill-extrusion-color': [
+                                    'interpolate',
+                                    ['linear'],
+                                    ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
+                                    0, '#30344a',
+                                    20, '#3d4361',
+                                    50, '#4e567d',
+                                    100, '#636e9e',
+                                    200, '#7b89c4',
+                                    300, '#93a3e6'
+                                ],
+                                'fill-extrusion-height': [
+                                    'interpolate',
+                                    ['linear'],
+                                    ['zoom'],
+                                    13.0, 0,
+                                    14.2, ['coalesce', ['get', 'render_height'], ['get', 'height'], 12]
+                                ],
+                                'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+                                'fill-extrusion-opacity': [
+                                    'interpolate',
+                                    ['linear'],
+                                    ['zoom'],
+                                    13.0, 1.0,
+                                    16.8, 1.0,
+                                    17.8, 0.72,
+                                    19.0, 0.45
+                                ]
+                            }
+                        }, targetBeforeId);
+                        if (this._densityMode) {
+                            this.setDensityMode(true);
                         }
-                    }, targetBeforeId);
+                    }
                 }
             } catch(e) {
                 console.warn('3D Buildings injection notice:', e);
+            }
+        }
+
+        setDensityMode(active) {
+            this._densityMode = active;
+            if (!this.maplibre || !this.maplibre.getLayer('3d-buildings')) return;
+            if (active) {
+                // Color buildings according to density of adjacent street network:
+                // High density / Major avenues -> Red (#d50000)
+                // Local avenues -> Orange (#ff9100)
+                // Secondary / connecting streets -> Yellow (#ffb300)
+                // Residential / low density -> Gray (#a3a18e)
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
+                    'interpolate',
+                    ['linear'],
+                    ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+                    0,   '#a3a18e', // Low density: residential neighborhoods (<10m)
+                    8,   '#a3a18e', 
+                    12,  '#ffb300', // Medium density: secondary connecting streets (10-20m)
+                    20,  '#ff9100', // High-medium density: local avenues (20-40m)
+                    40,  '#d50000', // Major avenues (Alameda, Providencia corridor) (40m+)
+                    80,  '#d50000', // High-density towers (red)
+                    150, '#ff1744', // Major transit corridor towers (crimson)
+                    300, '#ff0055'  // Landmark tower (vivid red-magenta)
+                ]);
+                this.maplibre.setLight({
+                    anchor: 'viewport',
+                    color: '#fff5ea',
+                    intensity: 0.65,
+                    position: [1.25, 120, 50]
+                });
+            } else {
+                // Normal sleek architectural slate palette
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
+                    'interpolate',
+                    ['linear'],
+                    ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
+                    0, '#30344a',
+                    20, '#3d4361',
+                    50, '#4e567d',
+                    100, '#636e9e',
+                    200, '#7b89c4',
+                    300, '#93a3e6'
+                ]);
+                this.maplibre.setLight({
+                    anchor: 'viewport',
+                    color: '#ffffff',
+                    intensity: 0.55,
+                    position: [1.25, 120, 50]
+                });
             }
         }
 

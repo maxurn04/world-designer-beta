@@ -43,6 +43,9 @@ function toggleDensityFilter() {
     if (isDensityFilterActive) {
         if (btn) btn.classList.add('active');
         if (legend) legend.style.display = 'block';
+        if (window.map && typeof window.map.setDensityMode === 'function') {
+            window.map.setDensityMode(true);
+        }
         if (!map.hasLayer(densityMapLayerGroup)) map.addLayer(densityMapLayerGroup);
         if (!densityMapLayerGroup.hasLayer(densityCatchmentLayerGroup)) {
             densityMapLayerGroup.addLayer(densityCatchmentLayerGroup);
@@ -59,6 +62,9 @@ function toggleDensityFilter() {
     } else {
         if (btn) btn.classList.remove('active');
         if (legend) legend.style.display = 'none';
+        if (window.map && typeof window.map.setDensityMode === 'function') {
+            window.map.setDensityMode(false);
+        }
         densityMapLayerGroup.clearLayers();
         densityCatchmentLayerGroup.clearLayers();
         santiagoStreetOverlay = null;

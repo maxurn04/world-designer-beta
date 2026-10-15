@@ -143,7 +143,12 @@ document.addEventListener('DOMContentLoaded', loadSantiagoStreetsFromJS);
             maskLayerGroup.clearLayers();
             activeBorders.clearLayers();
 
-            if (currentLevel === 10) return; // RM Open
+            if (currentLevel === 10) {
+                if (window.map && window.map.maplibre && window.map.maplibre.getLayer('3d-buildings')) {
+                    try { window.map.maplibre.setFilter('3d-buildings', null); } catch(e){}
+                }
+                return; // RM Open
+            }
 
             let smoothFactor = currentResolution === 50 ? 5.0 : (currentResolution === 75 ? 2.5 : 1.0);
             let strokeWidth = currentResolution === 50 ? 1.4 : (currentResolution === 75 ? 2.0 : 2.5);

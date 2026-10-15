@@ -921,45 +921,48 @@
                 });
 
                 // Active Commune Mask (Fog of War):
-                // 1. Renders dark ground fill UNDER 3D buildings and traffic cars.
-                // 2. Renders 3D extrusion volume (height: 120m) over locked communes with depth testing.
-                // Because unlocked communes are holes in the extrusion, buildings in the blocked zone
-                // are submerged inside the black volume ("van por la zona negra"), while unlocked buildings
-                // (like Gran Torre Santiago / Costanera Center) stand completely in the clear in full 3D!
-                if (this.options.pane === 'maskPane') {
-                    const groundId = this.layerId + '-ground';
-                    const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
-                    ml.addLayer({
-                        id: groundId,
-                        type: 'fill',
-                        source: this.sourceId,
-                        paint: {
-                            'fill-color': resolveColor(this.options.fillColor, '#050508'),
-                            'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.95
-                        }
-                    }, beforeBuildingsId);
+                // 1. Renders dark flat 2D ground fill UNDER 3D buildings and traffic cars (NO 3D extrusion wall).
+                // 2. Filters 3D buildings layer so ONLY buildings inside unlocked communes are rendered in 3D.
+                // Buildings in locked communes are excluded from the 3D layer and covered by the 2D fog of war.
+                const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
+                ml.addLayer({
+                    id: this.layerId,
+                    type: 'fill',
+                    source: this.sourceId,
+                    paint: {
+                        'fill-color': resolveColor(this.options.fillColor, '#050508'),
+                        'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : (this.options.pane === 'maskPane' ? 0.95 : 0.88)
+                    }
+                }, beforeBuildingsId);
 
-                    ml.addLayer({
-                        id: this.layerId,
-                        type: 'fill-extrusion',
-                        source: this.sourceId,
-                        paint: {
-                            'fill-extrusion-color': resolveColor(this.options.fillColor, '#050508'),
-                            'fill-extrusion-height': 120,
-                            'fill-extrusion-base': 0,
-                            'fill-extrusion-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.95
+                if (this.options.pane === 'maskPane' && this.latlngs && this.latlngs.length > 1) {
+                    // Extract active commune rings (the holes in the world mask)
+                    const activeGeoJSON = {
+                        type: 'MultiPolygon',
+                        coordinates: this.latlngs.slice(1).map(ring => {
+                            let r = ring.map(pt => {
+                                let lat = pt.lat !== undefined ? pt.lat : pt[0];
+                                let lng = pt.lng !== undefined ? pt.lng : pt[1];
+                                return [lng, lat];
+                            });
+                            if (r.length > 0) {
+                                let first = r[0], last = r[r.length - 1];
+                                if (first[0] !== last[0] || first[1] !== last[1]) {
+                                    r.push([first[0], first[1]]);
+                                }
+                            }
+                            return [r];
+                        })
+                    };
+
+                    targetMap._activeCommunesGeoJSON = activeGeoJSON;
+                    if (ml.getLayer('3d-buildings')) {
+                        try {
+                            ml.setFilter('3d-buildings', ['==', ['within', activeGeoJSON], true]);
+                        } catch(err) {
+                            console.warn('MapLibre 3D building within filter notice:', err);
                         }
-                    });
-                } else {
-                    ml.addLayer({
-                        id: this.layerId,
-                        type: 'fill',
-                        source: this.sourceId,
-                        paint: {
-                            'fill-color': resolveColor(this.options.fillColor, '#050508'),
-                            'fill-opacity': this.options.fillOpacity !== undefined ? this.options.fillOpacity : 0.88
-                        }
-                    });
+                    }
                 }
 
                 if (this._handlers['click'] && this._handlers['click'].length > 0) {
@@ -1213,13 +1216,20 @@
                         [sw.lng, sw.lat]
                     ]
                 });
-                const beforeId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
+                let beforeId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
+                const layers = ml.getStyle().layers;
+                for (let i = 0; i < layers.length; i++) {
+                    if (layers[i].id.startsWith('poly-lay-')) {
+                        beforeId = layers[i].id;
+                        break;
+                    }
+                }
                 ml.addLayer({
                     id: this.layerId,
                     type: 'raster',
                     source: this.sourceId,
                     paint: {
-                        'raster-opacity': this.options.opacity !== undefined ? this.options.opacity : 0.95
+                        'raster-opacity': this.options.opacity !== undefined ? this.options.opacity : 0.35
                     }
                 }, beforeId);
                 this._added = true;
@@ -1503,6 +1513,13 @@
                                 ]
                             }
                         }, targetBeforeId);
+                        if (this._activeCommunesGeoJSON) {
+                            try {
+                                this.maplibre.setFilter('3d-buildings', ['==', ['within', this._activeCommunesGeoJSON], true]);
+                            } catch(err) {
+                                console.warn('Building within filter initialization notice:', err);
+                            }
+                        }
                         if (this._densityMode) {
                             this.setDensityMode(true);
                         }
@@ -1517,32 +1534,29 @@
             this._densityMode = active;
             if (!this.maplibre || !this.maplibre.getLayer('3d-buildings')) return;
             if (active) {
-                // Color buildings according to density of adjacent street network:
-                // High density / Major avenues -> Red (#d50000)
-                // Local avenues -> Orange (#ff9100)
-                // Secondary / connecting streets -> Yellow (#ffb300)
-                // Residential / low density -> Gray (#a3a18e)
+                // In Density mode, keep buildings in subtle architectural slate,
+                // and soften their opacity (0.60) so the 35% colored street grid on the ground
+                // is beautifully visible and legible without buildings overwhelming the map
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
                     'interpolate',
                     ['linear'],
-                    ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
-                    0,   '#a3a18e', // Low density: residential neighborhoods (<10m)
-                    8,   '#a3a18e', 
-                    12,  '#ffb300', // Medium density: secondary connecting streets (10-20m)
-                    20,  '#ff9100', // High-medium density: local avenues (20-40m)
-                    40,  '#d50000', // Major avenues (Alameda, Providencia corridor) (40m+)
-                    80,  '#d50000', // High-density towers (red)
-                    150, '#ff1744', // Major transit corridor towers (crimson)
-                    300, '#ff0055'  // Landmark tower (vivid red-magenta)
+                    ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
+                    0, '#26293a',
+                    20, '#30354a',
+                    50, '#3d4361',
+                    100, '#4e567d',
+                    200, '#636e9e',
+                    300, '#7b89c4'
                 ]);
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', 0.60);
                 this.maplibre.setLight({
                     anchor: 'viewport',
-                    color: '#fff5ea',
-                    intensity: 0.65,
+                    color: '#ffffff',
+                    intensity: 0.55,
                     position: [1.25, 120, 50]
                 });
             } else {
-                // Normal sleek architectural slate palette
+                // Normal solid view
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
                     'interpolate',
                     ['linear'],
@@ -1553,6 +1567,15 @@
                     100, '#636e9e',
                     200, '#7b89c4',
                     300, '#93a3e6'
+                ]);
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    13.0, 1.0,
+                    16.8, 1.0,
+                    17.8, 0.72,
+                    19.0, 0.45
                 ]);
                 this.maplibre.setLight({
                     anchor: 'viewport',

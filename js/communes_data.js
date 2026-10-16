@@ -636,6 +636,155 @@
                     [-33.3800, -70.5300],
                     [-33.3900, -70.5250]
                 ]
+            },
+            {
+                id: "av_andres_bello",
+                name: "Avenida Andrés Bello",
+                shortName: "Andrés Bello",
+                category: "vehicular",
+                density: 195,
+                tier: "red",
+                desc: "Arteria ribereña de altísima demanda vial corporativa que conecta el centro con Providencia y Las Condes",
+                coords: [
+                    [-33.4350, -70.6350],
+                    [-33.4280, -70.6200],
+                    [-33.4200, -70.6080],
+                    [-33.4150, -70.5950]
+                ]
+            },
+            {
+                id: "av_santa_rosa",
+                name: "Avenida Santa Rosa",
+                shortName: "Santa Rosa",
+                category: "vehicular",
+                density: 190,
+                tier: "red",
+                desc: "Corredor troncal estructurante masivo sur que conecta el centro cívico con San Miguel y la zona sur",
+                coords: [
+                    [-33.4440, -70.6480],
+                    [-33.4650, -70.6450],
+                    [-33.4950, -70.6420],
+                    [-33.5350, -70.6400],
+                    [-33.5850, -70.6350]
+                ]
+            },
+            {
+                id: "av_vicuna_mackenna",
+                name: "Avenida Vicuña Mackenna",
+                shortName: "Vicuña Mackenna",
+                category: "vehicular",
+                density: 195,
+                tier: "red",
+                desc: "Eje troncal metropolitano y límite comunal de altísima densidad de servicios y transporte masivo",
+                coords: [
+                    [-33.4370, -70.6340],
+                    [-33.4500, -70.6310],
+                    [-33.4800, -70.6250],
+                    [-33.5100, -70.6050],
+                    [-33.5500, -70.5850]
+                ]
+            },
+            {
+                id: "gran_avenida",
+                name: "Gran Avenida José Miguel Carrera",
+                shortName: "Gran Avenida",
+                category: "vehicular",
+                density: 190,
+                tier: "red",
+                desc: "Columna vertebral sur del transporte metropolitano y eje comercial histórico",
+                coords: [
+                    [-33.4600, -70.6550],
+                    [-33.4950, -70.6550],
+                    [-33.5300, -70.6580],
+                    [-33.5700, -70.6620]
+                ]
+            },
+            {
+                id: "av_recoleta",
+                name: "Avenida Recoleta",
+                shortName: "Recoleta",
+                category: "vehicular",
+                density: 185,
+                tier: "red",
+                desc: "Eje estructurante norte de comercio mayorista y alta afluencia peatonal y vehicular",
+                coords: [
+                    [-33.4330, -70.6470],
+                    [-33.4200, -70.6460],
+                    [-33.3950, -70.6440],
+                    [-33.3700, -70.6420]
+                ]
+            },
+            {
+                id: "av_independencia",
+                name: "Avenida Independencia",
+                shortName: "Independencia",
+                category: "vehicular",
+                density: 185,
+                tier: "red",
+                desc: "Corredor troncal norte de conexión directa con el centro histórico",
+                coords: [
+                    [-33.4320, -70.6530],
+                    [-33.4150, -70.6560],
+                    [-33.3900, -70.6650]
+                ]
+            },
+            {
+                id: "av_francisco_bilbao",
+                name: "Avenida Francisco Bilbao",
+                shortName: "Francisco Bilbao",
+                category: "vehicular",
+                density: 170,
+                tier: "yellow",
+                desc: "Arteria oriente de conexión intercomunal residencial de media y alta densidad",
+                coords: [
+                    [-33.4380, -70.6250],
+                    [-33.4350, -70.6050],
+                    [-33.4320, -70.5800],
+                    [-33.4280, -70.5500]
+                ]
+            },
+            {
+                id: "av_tobalaba",
+                name: "Avenida Tobalaba",
+                shortName: "Tobalaba",
+                category: "vehicular",
+                density: 175,
+                tier: "yellow",
+                desc: "Arteria oriente al pie del canal San Carlos y conexión con centros financieros",
+                coords: [
+                    [-33.4150, -70.5980],
+                    [-33.4350, -70.5900],
+                    [-33.4600, -70.5750],
+                    [-33.4900, -70.5550]
+                ]
+            },
+            {
+                id: "av_eliodoro_yanez",
+                name: "Avenida Eliodoro Yáñez",
+                shortName: "Eliodoro Yáñez",
+                category: "vehicular",
+                density: 165,
+                tier: "yellow",
+                desc: "Eje estructurante de Providencia de flujo constante y servicios profesionales",
+                coords: [
+                    [-33.4330, -70.6250],
+                    [-33.4280, -70.6050],
+                    [-33.4220, -70.5900]
+                ]
+            },
+            {
+                id: "av_pajaritos",
+                name: "Avenida Pajaritos",
+                shortName: "Pajaritos",
+                category: "vehicular",
+                density: 185,
+                tier: "red",
+                desc: "Arteria principal de conexión poniente hacia Maipú",
+                coords: [
+                    [-33.4550, -70.7050],
+                    [-33.4800, -70.7300],
+                    [-33.5100, -70.7550]
+                ]
             }
         ];
 

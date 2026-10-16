@@ -398,6 +398,13 @@ function loadDensityRaster(lvl, callback) {
         callback(densityRasterCache[lvl]);
         return;
     }
+    // Check if preloaded base64 Data URI is available (100% offline & file:// compatible)
+    if (typeof window !== 'undefined' && window.SANTIAGO_DENSITY_RASTERS && window.SANTIAGO_DENSITY_RASTERS[lvl]) {
+        let dataUrl = window.SANTIAGO_DENSITY_RASTERS[lvl];
+        densityRasterCache[lvl] = dataUrl;
+        callback(dataUrl);
+        return;
+    }
     let url = `density_maps/santiago_density_lvl${lvl}.png`;
     densityRasterCache[lvl] = url;
     callback(url);
@@ -413,7 +420,7 @@ function renderDensityMapFilter() {
 
     let metroStations = allStations.filter(s => s.type === 'metro' || s.isIntermodal);
 
-    // 1. High-Performance Hardware-Accelerated 60 FPS Density Overlay
+    // 1. High-Performance Hardware-Accelerated 60 FPS Density Overlay on Ground
     const SANTIAGO_DENSITY_BOUNDS = L.latLngBounds(
         [-33.6977331, -70.8888608],
         [-33.2713440, -70.4226449]
@@ -428,11 +435,11 @@ function renderDensityMapFilter() {
             if (santiagoStreetOverlay && densityMapLayerGroup.hasLayer(santiagoStreetOverlay)) {
                 santiagoStreetOverlay.setUrl(rasterUrl);
                 if (typeof santiagoStreetOverlay.setOpacity === 'function') {
-                    santiagoStreetOverlay.setOpacity(0.85);
+                    santiagoStreetOverlay.setOpacity(0.38);
                 }
             } else {
                 santiagoStreetOverlay = L.imageOverlay(rasterUrl, SANTIAGO_DENSITY_BOUNDS, {
-                    opacity: 0.85,
+                    opacity: 0.38,
                     interactive: false,
                     pane: 'densityStreetPane',
                     zIndex: 340,

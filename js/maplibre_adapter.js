@@ -1136,6 +1136,17 @@
             this._isRemoved = false;
             this._handlers = {};
         }
+        _resolveRasterUrl(url) {
+            if (!url) return url;
+            if (typeof url === 'string' && url.startsWith('data:')) return url;
+            if (typeof window !== 'undefined' && window.SANTIAGO_DENSITY_RASTERS) {
+                const match = String(url).match(/lvl(\d+)\.png/);
+                if (match && match[1] && window.SANTIAGO_DENSITY_RASTERS[match[1]]) {
+                    return window.SANTIAGO_DENSITY_RASTERS[match[1]];
+                }
+            }
+            return url;
+        }
         setUrl(url) {
             this.url = url;
             if (this._map && this._added) {
@@ -1150,7 +1161,8 @@
                         [ne.lng, sw.lat],
                         [sw.lng, sw.lat]
                     ];
-                    src.updateImage({ url: this.url, coordinates: coords });
+                    const finalUrl = this._resolveRasterUrl(this.url);
+                    src.updateImage({ url: finalUrl, coordinates: coords });
                     if (ml.triggerRepaint) ml.triggerRepaint();
                 }
             }
@@ -1217,12 +1229,13 @@
                 ];
 
                 const beforeBuildingsId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
-                const rasterOpacity = this.options.opacity !== undefined ? this.options.opacity : 0.85;
+                const rasterOpacity = this.options.opacity !== undefined ? this.options.opacity : 0.38;
+                const finalUrl = this._resolveRasterUrl(this.url);
 
                 try {
                     ml.addSource(this.sourceId, {
                         type: 'image',
-                        url: this.url,
+                        url: finalUrl,
                         coordinates: coords
                     });
                     ml.addLayer({
@@ -1528,31 +1541,142 @@
             }
         }
 
+        _updateBuildingDensityProximity() {
+            if (!this._densityMode || !this.maplibre || !this.maplibre.getLayer('3d-buildings')) return;
+
+            const feats = this.maplibre.queryRenderedFeatures({ layers: ['3d-buildings'] });
+            if (!feats || feats.length === 0) return;
+
+            if (!this._buildingDensityCache) {
+                this._buildingDensityCache = new Map();
+            }
+
+            for (let i = 0; i < feats.length; i++) {
+                const f = feats[i];
+                if (!f || f.id === undefined) continue;
+
+                if (this._buildingDensityCache.has(f.id)) continue;
+
+                if (!f.geometry || !f.geometry.coordinates) continue;
+                const coords = f.geometry.type === 'MultiPolygon' ? (f.geometry.coordinates[0] && f.geometry.coordinates[0][0]) : f.geometry.coordinates[0];
+                if (!coords || coords.length === 0) continue;
+
+                let sLng = 0, sLat = 0, n = coords.length;
+                for (let k = 0; k < n; k++) {
+                    sLng += coords[k][0];
+                    sLat += coords[k][1];
+                }
+                const centerLat = sLat / n;
+                const centerLng = sLng / n;
+
+                let minDist = 9999;
+                let aveTier = 'yellow';
+                if (typeof SANTIAGO_MAJOR_AVENUES !== 'undefined' && Array.isArray(SANTIAGO_MAJOR_AVENUES)) {
+                    for (let a = 0; a < SANTIAGO_MAJOR_AVENUES.length; a++) {
+                        const ave = SANTIAGO_MAJOR_AVENUES[a];
+                        if (!ave.coords || ave.coords.length < 2) continue;
+                        for (let s = 0; s < ave.coords.length - 1; s++) {
+                            const p1 = ave.coords[s], p2 = ave.coords[s + 1];
+                            const x1 = p1[0], y1 = p1[1], x2 = p2[0], y2 = p2[1];
+                            const dx = x2 - x1, dy = y2 - y1;
+                            const l2 = dx * dx + dy * dy;
+                            const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((centerLat - x1) * dx + (centerLng - y1) * dy) / l2));
+                            const projLat = x1 + t * dx, projLng = y1 + t * dy;
+                            const dLat = (centerLat - projLat) * 111320;
+                            const dLng = (centerLng - projLng) * 111320 * Math.cos((centerLat + projLat) * Math.PI / 360);
+                            const dMeters = Math.sqrt(dLat * dLat + dLng * dLng);
+                            if (dMeters < minDist) {
+                                minDist = dMeters;
+                                aveTier = ave.tier || 'red';
+                            }
+                        }
+                    }
+                }
+
+                const osmHeight = Number((f.properties && (f.properties.render_height || f.properties.height)) || 0);
+
+                let color = '#8e96a0'; // Tier 4: Slate/Gray (Interior low-density residential)
+                let tier = 4;
+                let h = 7;
+
+                // Rule: Closer to major avenue = higher density (Red / Orange)
+                // Farther away from avenues = low density (Yellow / Gray)
+                if (osmHeight >= 36) {
+                    // Landmark high-rise towers
+                    color = '#ff1744';
+                    tier = 1;
+                    h = osmHeight;
+                } else if (osmHeight >= 22) {
+                    // Tall avenue blocks
+                    color = '#ff9100';
+                    tier = 2;
+                    h = osmHeight;
+                } else if (minDist <= 75 && (aveTier === 'red' || aveTier === 'yellow')) {
+                    // Direct frontage on major avenues
+                    color = '#d50000'; // Tier 1: Red
+                    tier = 1;
+                    h = Math.max(osmHeight, 22);
+                } else if (minDist <= 165) {
+                    // Within 1-2 blocks of a major avenue
+                    color = '#ff9100'; // Tier 2: Orange
+                    tier = 2;
+                    h = Math.max(osmHeight, 15);
+                } else if (minDist <= 300) {
+                    // Intermediate connecting streets
+                    color = '#ffb300'; // Tier 3: Yellow
+                    tier = 3;
+                    h = Math.max(osmHeight, 11);
+                } else {
+                    // Interior quiet residential neighborhoods away from avenues
+                    color = '#8e96a0'; // Tier 4: Gray/Slate
+                    tier = 4;
+                    h = Math.max(osmHeight, 7);
+                }
+
+                this._buildingDensityCache.set(f.id, { color, tier, h });
+
+                try {
+                    this.maplibre.setFeatureState({
+                        source: 'openmaptiles',
+                        sourceLayer: 'building',
+                        id: f.id
+                    }, {
+                        densityColor: color,
+                        densityTier: tier,
+                        densityHeight: h
+                    });
+                } catch(e) {}
+            }
+        }
+
         setDensityMode(active) {
             this._densityMode = active;
             if (!this.maplibre || !this.maplibre.getLayer('3d-buildings')) return;
+
+            if (!this._boundDensityUpdater) {
+                this._boundDensityUpdater = () => this._updateBuildingDensityProximity();
+            }
+
             if (active) {
-                // Density & Attraction Heatmap Mode:
-                // 3D buildings colored by density & transit demand tiers:
-                // - Tier 1: Red (#d50000 / #ff1744) -> Critical demand / Major transit hubs & towers (8.5 - 10.0)
-                // - Tier 2: Orange (#ff9100) -> High density urban corridors (6.0 - 8.4)
-                // - Tier 3: Yellow (#ffb300) -> Moderate density / Connecting streets (3.5 - 5.9)
-                // - Tier 4: Gray/Neutral (#8e96a0) -> Low density residential neighborhoods (1.0 - 3.4)
+                // Density & Transit Attraction Heatmap Mode:
+                // 3D buildings colored by avenue proximity and transit demand:
+                // - Tier 1: Red (#d50000 / #ff1744) -> Closest to major avenues & landmark towers (8.5 - 10.0)
+                // - Tier 2: Orange (#ff9100) -> High density corridor / 1-2 blocks from avenues (6.0 - 8.4)
+                // - Tier 3: Yellow (#ffb300) -> Intermediate connecting streets (3.5 - 5.9)
+                // - Tier 4: Slate/Gray (#8e96a0) -> Interior quiet residential neighborhoods (1.0 - 3.4)
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
                     'case',
+                    ['!=', ['feature-state', 'densityColor'], null],
+                    ['feature-state', 'densityColor'],
                     ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 35],
                     '#ff1744',
                     ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 20],
                     '#ff9100',
-                    [
-                        'step',
-                        ['%', ['coalesce', ['id'], 0], 100],
-                        '#d50000',
-                        35, '#ff9100',
-                        55, '#ffb300',
-                        75, '#8e96a0'
-                    ]
+                    ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 12],
+                    '#ffb300',
+                    '#8e96a0'
                 ]);
+
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-height', [
                     'interpolate',
                     ['linear'],
@@ -1561,25 +1685,31 @@
                     14.2, [
                         'case',
                         ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 0],
-                        ['coalesce', ['get', 'render_height'], ['get', 'height'], 12],
-                        [
-                            'step',
-                            ['%', ['coalesce', ['id'], 0], 100],
-                            28,
-                            35, 18,
-                            55, 14,
-                            75, 9
-                        ]
+                        ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+                        ['!=', ['feature-state', 'densityHeight'], null],
+                        ['feature-state', 'densityHeight'],
+                        7
                     ]
                 ]);
-                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', 0.85);
+
+                // 72% opacity ensures 3D buildings look solid and voluminous while the street network on the ground remains clearly visible
+                this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', 0.72);
                 this.maplibre.setLight({
                     anchor: 'viewport',
                     color: '#ffffff',
                     intensity: 0.70,
                     position: [1.25, 120, 50]
                 });
+
+                this.maplibre.on('moveend', this._boundDensityUpdater);
+                this.maplibre.on('sourcedata', this._boundDensityUpdater);
+                this.maplibre.on('idle', this._boundDensityUpdater);
+                this._updateBuildingDensityProximity();
             } else {
+                this.maplibre.off('moveend', this._boundDensityUpdater);
+                this.maplibre.off('sourcedata', this._boundDensityUpdater);
+                this.maplibre.off('idle', this._boundDensityUpdater);
+
                 // Normal sleek architectural slate view with directional lighting
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
                     'interpolate',

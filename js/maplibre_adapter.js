@@ -1544,7 +1544,7 @@
         _updateBuildingDensityProximity() {
             if (!this._densityMode || !this.maplibre || !this.maplibre.getLayer('3d-buildings')) return;
 
-            const feats = this.maplibre.queryRenderedFeatures({ layers: ['3d-buildings'] });
+            const feats = this.maplibre.queryRenderedFeatures(undefined, { layers: ['3d-buildings'] });
             if (!feats || feats.length === 0) return;
 
             if (!this._buildingDensityCache) {
@@ -1595,42 +1595,56 @@
 
                 const osmHeight = Number((f.properties && (f.properties.render_height || f.properties.height)) || 0);
 
-                let color = '#8e96a0'; // Tier 4: Slate/Gray (Interior low-density residential)
+                // Deterministic seed per building using ID and location hash
+                const rawId = Math.abs(Number(f.id) || 0);
+                const coordHash = Math.abs(Math.floor(centerLat * 100000) * 31 + Math.floor(centerLng * 100000));
+                const seed = (rawId * 1664525 + coordHash + 1013904223) % 100;
+
+                let color = '#8e96a0';
                 let tier = 4;
                 let h = 7;
 
-                // Rule: Closer to major avenue = higher density (Red / Orange)
-                // Farther away from avenues = low density (Yellow / Gray)
-                if (osmHeight >= 36) {
-                    // Landmark high-rise towers
-                    color = '#ff1744';
-                    tier = 1;
-                    h = osmHeight;
-                } else if (osmHeight >= 22) {
-                    // Tall avenue blocks
-                    color = '#ff9100';
-                    tier = 2;
-                    h = osmHeight;
-                } else if (minDist <= 75 && (aveTier === 'red' || aveTier === 'yellow')) {
-                    // Direct frontage on major avenues
-                    color = '#d50000'; // Tier 1: Red
-                    tier = 1;
-                    h = Math.max(osmHeight, 22);
-                } else if (minDist <= 165) {
-                    // Within 1-2 blocks of a major avenue
-                    color = '#ff9100'; // Tier 2: Orange
-                    tier = 2;
-                    h = Math.max(osmHeight, 15);
-                } else if (minDist <= 300) {
-                    // Intermediate connecting streets
-                    color = '#ffb300'; // Tier 3: Yellow
-                    tier = 3;
-                    h = Math.max(osmHeight, 11);
+                // Red Street Zone: Corridor directly along major avenues (≤115m)
+                const isRedStreetZone = (minDist <= 115 && (aveTier === 'red' || aveTier === 'yellow'));
+
+                if (isRedStreetZone) {
+                    // Rule 1: Red street zone -> ~50% red/orange, 50% yellow/gray
+                    if (seed < 35) {
+                        color = '#ff1744'; // Red (35%)
+                        tier = 1;
+                        h = Math.max(osmHeight, 22);
+                    } else if (seed < 50) {
+                        color = '#ff9100'; // Orange (15% -> total 50% red-orange)
+                        tier = 2;
+                        h = Math.max(osmHeight, 16);
+                    } else if (seed < 75) {
+                        color = '#ffb300'; // Yellow (25%)
+                        tier = 3;
+                        h = Math.max(osmHeight, 11);
+                    } else {
+                        color = '#8e96a0'; // Gray (25% -> total 50% yellow-gray)
+                        tier = 4;
+                        h = Math.max(osmHeight, 7);
+                    }
                 } else {
-                    // Interior quiet residential neighborhoods away from avenues
-                    color = '#8e96a0'; // Tier 4: Gray/Slate
-                    tier = 4;
-                    h = Math.max(osmHeight, 7);
+                    // Rule 2: Yellow/Gray street zone -> strictly 15-20% red/orange, 80-85% yellow/gray
+                    if (seed < 11) {
+                        color = '#ff1744'; // Red (11%)
+                        tier = 1;
+                        h = Math.max(osmHeight, 18);
+                    } else if (seed < 17) {
+                        color = '#ff9100'; // Orange (6% -> total 17% red-orange, in 15-20% range)
+                        tier = 2;
+                        h = Math.max(osmHeight, 14);
+                    } else if (seed < 58) {
+                        color = '#ffb300'; // Yellow (41%)
+                        tier = 3;
+                        h = Math.max(osmHeight, 10);
+                    } else {
+                        color = '#8e96a0'; // Gray (42% -> total 83% yellow-gray)
+                        tier = 4;
+                        h = Math.max(osmHeight, 7);
+                    }
                 }
 
                 this._buildingDensityCache.set(f.id, { color, tier, h });
@@ -1643,7 +1657,8 @@
                     }, {
                         densityColor: color,
                         densityTier: tier,
-                        densityHeight: h
+                        densityHeight: h,
+                        densityZone: isRedStreetZone ? 'red_avenue' : 'yellow_gray'
                     });
                 } catch(e) {}
             }
@@ -1659,22 +1674,21 @@
 
             if (active) {
                 // Density & Transit Attraction Heatmap Mode:
-                // 3D buildings colored by avenue proximity and transit demand:
-                // - Tier 1: Red (#d50000 / #ff1744) -> Closest to major avenues & landmark towers (8.5 - 10.0)
-                // - Tier 2: Orange (#ff9100) -> High density corridor / 1-2 blocks from avenues (6.0 - 8.4)
-                // - Tier 3: Yellow (#ffb300) -> Intermediate connecting streets (3.5 - 5.9)
-                // - Tier 4: Slate/Gray (#8e96a0) -> Interior quiet residential neighborhoods (1.0 - 3.4)
+                // 3D buildings colored by zone street hierarchy:
+                // - Red street zones: ~50% red/orange, 50% yellow/gray
+                // - Yellow/gray street zones: 15-20% red/orange, 80-85% yellow/gray
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
                     'case',
                     ['!=', ['feature-state', 'densityColor'], null],
                     ['feature-state', 'densityColor'],
-                    ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 35],
-                    '#ff1744',
-                    ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 20],
-                    '#ff9100',
-                    ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 12],
-                    '#ffb300',
-                    '#8e96a0'
+                    [
+                        'step',
+                        ['%', ['coalesce', ['id'], 0], 100],
+                        '#ff1744',     // 0 - 10: 11% Red
+                        11, '#ff9100', // 11 - 16: 6% Orange (Total 17% red/orange)
+                        17, '#ffb300', // 17 - 57: 41% Yellow
+                        58, '#8e96a0'  // 58 - 99: 42% Gray (Total 83% yellow/gray)
+                    ]
                 ]);
 
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-height', [
@@ -1688,7 +1702,14 @@
                         ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
                         ['!=', ['feature-state', 'densityHeight'], null],
                         ['feature-state', 'densityHeight'],
-                        7
+                        [
+                            'step',
+                            ['%', ['coalesce', ['id'], 0], 100],
+                            18,
+                            12, 14,
+                            18, 10,
+                            60, 7
+                        ]
                     ]
                 ]);
 

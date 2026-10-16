@@ -939,11 +939,12 @@
 
                 // Active Commune Mask (Fog of War):
                 // 1. In unlocked communes (the holes in the world mask), 3D buildings and streets rise in full glory.
-                // 2. In locked communes, the mask is a flat 2D fill (#050508) rendered AFTER 3d-buildings.
-                // It cleanly submerges and darkens locked buildings into #050508 (no vertical 120m cliff wall!).
+                // 2. The mask is placed BEFORE 3D buildings so tall landmark towers (like Gran Torre Santiago 300m)
+                // rise majestically into the sky without being chopped off or clipped horizontally by the mask.
+                // 3. Buildings in locked communes are submerged and darkened into #050508 via zoning & feature state.
                 let beforeId;
                 if (this.options.pane === 'maskPane') {
-                    beforeId = getLayerBeforeLabels(ml);
+                    beforeId = ml.getLayer('3d-buildings') ? '3d-buildings' : getLayerBeforeLabels(ml);
                 } else {
                     beforeId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
                 }
@@ -1569,12 +1570,40 @@
                 const centerLat = sLat / n;
                 const centerLng = sLng / n;
 
+                // Check active unlocked zone
+                const inActive = (typeof isPointInActiveZone === 'function')
+                    ? isPointInActiveZone({ lat: centerLat, lng: centerLng })
+                    : true;
+
+                if (!inActive) {
+                    // Submerge and darken buildings in locked territory into the ground mask #050508
+                    this._buildingDensityCache.set(f.id, { color: '#050508', tier: 5, h: 0, isLocked: true });
+                    try {
+                        this.maplibre.setFeatureState({
+                            source: 'openmaptiles',
+                            sourceLayer: 'building',
+                            id: f.id
+                        }, {
+                            densityColor: '#050508',
+                            densityTier: 5,
+                            densityHeight: 0,
+                            isLocked: true
+                        });
+                    } catch(e) {}
+                    continue;
+                }
+
+                // Compute local red street density & proximity metrics
                 let minDist = 9999;
-                let aveTier = 'yellow';
+                let aveTier = 'gray';
+                let redScore = 0;
+                let redCount = 0;
+
                 if (typeof SANTIAGO_MAJOR_AVENUES !== 'undefined' && Array.isArray(SANTIAGO_MAJOR_AVENUES)) {
                     for (let a = 0; a < SANTIAGO_MAJOR_AVENUES.length; a++) {
                         const ave = SANTIAGO_MAJOR_AVENUES[a];
                         if (!ave.coords || ave.coords.length < 2) continue;
+                        let aveMinDist = 9999;
                         for (let s = 0; s < ave.coords.length - 1; s++) {
                             const p1 = ave.coords[s], p2 = ave.coords[s + 1];
                             const x1 = p1[0], y1 = p1[1], x2 = p2[0], y2 = p2[1];
@@ -1585,10 +1614,16 @@
                             const dLat = (centerLat - projLat) * 111320;
                             const dLng = (centerLng - projLng) * 111320 * Math.cos((centerLat + projLat) * Math.PI / 360);
                             const dMeters = Math.sqrt(dLat * dLat + dLng * dLng);
-                            if (dMeters < minDist) {
-                                minDist = dMeters;
-                                aveTier = ave.tier || 'red';
-                            }
+                            if (dMeters < aveMinDist) aveMinDist = dMeters;
+                        }
+
+                        if (aveMinDist < minDist) {
+                            minDist = aveMinDist;
+                            aveTier = ave.tier || 'red';
+                        }
+                        if (ave.tier === 'red' && aveMinDist <= 650) {
+                            redCount++;
+                            redScore += (1 - aveMinDist / 650);
                         }
                     }
                 }
@@ -1598,56 +1633,64 @@
                 // Deterministic seed per building using ID and location hash
                 const rawId = Math.abs(Number(f.id) || 0);
                 const coordHash = Math.abs(Math.floor(centerLat * 100000) * 31 + Math.floor(centerLng * 100000));
-                const seed = (rawId * 1664525 + coordHash + 1013904223) % 100;
+                const seed = ((rawId % 10000) * 1664525 + (coordHash % 10000) + 1013904223) % 100;
 
                 let color = '#8e96a0';
                 let tier = 4;
                 let h = 7;
 
-                // Red Street Zone: Corridor directly along major avenues (≤115m)
-                const isRedStreetZone = (minDist <= 115 && (aveTier === 'red' || aveTier === 'yellow'));
-
-                if (isRedStreetZone) {
-                    // Rule 1: Red street zone -> ~50% red/orange, 50% yellow/gray
-                    if (seed < 35) {
-                        color = '#ff1744'; // Red (35%)
+                // Rule 0: Landmark high-rise towers (Gran Torre Santiago 300m, Titanium 200m, etc.) are ALWAYS Tier 1 Red!
+                if (osmHeight >= 36) {
+                    color = '#ff1744'; // Red
+                    tier = 1;
+                    h = osmHeight;
+                } else if (osmHeight >= 22) {
+                    color = '#ff9100'; // Orange
+                    tier = 2;
+                    h = osmHeight;
+                } else if (redScore >= 1.6 || (minDist <= 85 && aveTier === 'red')) {
+                    // ZONE 1: High red streets per km (e.g. Providencia / Costanera / Avenues Corridor)
+                    // High concentration of red avenues in the sector -> greater amount of red/orange buildings (60% Red/Orange)
+                    if (seed < 38) {
+                        color = '#ff1744'; // Red (38%)
                         tier = 1;
-                        h = Math.max(osmHeight, 22);
-                    } else if (seed < 50) {
-                        color = '#ff9100'; // Orange (15% -> total 50% red-orange)
+                        h = Math.max(osmHeight, 20);
+                    } else if (seed < 60) {
+                        color = '#ff9100'; // Orange (22% -> total 60% red/orange)
                         tier = 2;
-                        h = Math.max(osmHeight, 16);
-                    } else if (seed < 75) {
-                        color = '#ffb300'; // Yellow (25%)
+                        h = Math.max(osmHeight, 15);
+                    } else if (seed < 82) {
+                        color = '#ffb300'; // Yellow (22%)
                         tier = 3;
                         h = Math.max(osmHeight, 11);
                     } else {
-                        color = '#8e96a0'; // Gray (25% -> total 50% yellow-gray)
+                        color = '#8e96a0'; // Gray (18% -> total 40% yellow/gray)
                         tier = 4;
                         h = Math.max(osmHeight, 7);
                     }
                 } else {
-                    // Rule 2: Yellow/Gray street zone -> strictly 15-20% red/orange, 80-85% yellow/gray
-                    if (seed < 11) {
-                        color = '#ff1744'; // Red (11%)
+                    // ZONE 2: Low red streets per km (e.g. Santiago Centro / Matta / Franklin / Interior residential)
+                    // Fewer red streets per km -> strictly more gray and yellow (83% Gray/Yellow, 17% Red/Orange)
+                    if (seed < 10) {
+                        color = '#ff1744'; // Red (10%)
                         tier = 1;
-                        h = Math.max(osmHeight, 18);
+                        h = Math.max(osmHeight, 17);
                     } else if (seed < 17) {
-                        color = '#ff9100'; // Orange (6% -> total 17% red-orange, in 15-20% range)
+                        color = '#ff9100'; // Orange (7% -> total 17% red/orange)
                         tier = 2;
-                        h = Math.max(osmHeight, 14);
+                        h = Math.max(osmHeight, 13);
                     } else if (seed < 58) {
                         color = '#ffb300'; // Yellow (41%)
                         tier = 3;
-                        h = Math.max(osmHeight, 10);
+                        h = Math.max(osmHeight, 9);
                     } else {
-                        color = '#8e96a0'; // Gray (42% -> total 83% yellow-gray)
+                        color = '#8e96a0'; // Gray (42% -> total 83% yellow/gray)
                         tier = 4;
                         h = Math.max(osmHeight, 7);
                     }
                 }
 
-                this._buildingDensityCache.set(f.id, { color, tier, h });
+                this._buildingDensityCache.set(f.id, { color, tier, h, isLocked: false });
 
                 try {
                     this.maplibre.setFeatureState({
@@ -1658,7 +1701,8 @@
                         densityColor: color,
                         densityTier: tier,
                         densityHeight: h,
-                        densityZone: isRedStreetZone ? 'red_avenue' : 'yellow_gray'
+                        densityZone: (redScore >= 1.6) ? 'high_red_density' : 'low_red_density',
+                        isLocked: false
                     });
                 } catch(e) {}
             }
@@ -1674,18 +1718,25 @@
 
             if (active) {
                 // Density & Transit Attraction Heatmap Mode:
-                // 3D buildings colored by zone street hierarchy:
-                // - Red street zones: ~50% red/orange, 50% yellow/gray
-                // - Yellow/gray street zones: 15-20% red/orange, 80-85% yellow/gray
+                // 3D buildings colored by local street network density:
+                // - High red street density areas: 60% red/orange
+                // - Low red street density areas: strictly 17% red/orange, 83% gray/yellow
+                // - Skyscraper landmark towers (Gran Torre Santiago, Titanium): ALWAYS Red (#ff1744)
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-color', [
                     'case',
+                    ['==', ['feature-state', 'isLocked'], true],
+                    '#050508',
                     ['!=', ['feature-state', 'densityColor'], null],
                     ['feature-state', 'densityColor'],
+                    ['>=', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 36],
+                    '#ff1744',
+                    ['>=', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 22],
+                    '#ff9100',
                     [
                         'step',
                         ['%', ['coalesce', ['id'], 0], 100],
-                        '#ff1744',     // 0 - 10: 11% Red
-                        11, '#ff9100', // 11 - 16: 6% Orange (Total 17% red/orange)
+                        '#ff1744',     // 0 - 9: 10% Red
+                        10, '#ff9100', // 10 - 16: 7% Orange (Total 17% red/orange)
                         17, '#ffb300', // 17 - 57: 41% Yellow
                         58, '#8e96a0'  // 58 - 99: 42% Gray (Total 83% yellow/gray)
                     ]
@@ -1698,17 +1749,19 @@
                     13.0, 0,
                     14.2, [
                         'case',
-                        ['>', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 0],
-                        ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
+                        ['==', ['feature-state', 'isLocked'], true],
+                        0,
+                        ['>=', ['coalesce', ['get', 'render_height'], ['get', 'height'], 0], 22],
+                        ['coalesce', ['get', 'render_height'], ['get', 'height'], 22],
                         ['!=', ['feature-state', 'densityHeight'], null],
                         ['feature-state', 'densityHeight'],
                         [
                             'step',
                             ['%', ['coalesce', ['id'], 0], 100],
-                            18,
-                            12, 14,
-                            18, 10,
-                            60, 7
+                            17,
+                            10, 13,
+                            17, 9,
+                            58, 7
                         ]
                     ]
                 ]);
@@ -1748,7 +1801,12 @@
                     ['linear'],
                     ['zoom'],
                     13.0, 0,
-                    14.2, ['coalesce', ['get', 'render_height'], ['get', 'height'], 12]
+                    14.2, [
+                        'case',
+                        ['==', ['feature-state', 'isLocked'], true],
+                        0,
+                        ['coalesce', ['get', 'render_height'], ['get', 'height'], 12]
+                    ]
                 ]);
                 this.maplibre.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', [
                     'interpolate',

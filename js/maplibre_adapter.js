@@ -891,7 +891,7 @@
                     if (opts.fillOpacity !== undefined) ml.setPaintProperty(this.layerId + '-ground', 'fill-opacity', op);
                 }
                 if (ml.getLayer(this.layerId)) {
-                    if (opts.pane === 'maskPane' || ml.getLayer(this.layerId).type === 'fill-extrusion') {
+                    if (ml.getLayer(this.layerId).type === 'fill-extrusion') {
                         if (opts.fillColor) ml.setPaintProperty(this.layerId, 'fill-extrusion-color', col);
                         if (opts.fillOpacity !== undefined) ml.setPaintProperty(this.layerId, 'fill-extrusion-opacity', op);
                     } else {
@@ -938,13 +938,12 @@
                 });
 
                 // Active Commune Mask (Fog of War):
-                // 1. In unlocked communes (the holes in the world mask), 3D buildings and streets rise in full glory.
-                // 2. The mask is placed BEFORE 3D buildings so tall landmark towers (like Gran Torre Santiago 300m)
-                // rise majestically into the sky without being chopped off or clipped horizontally by the mask.
-                // 3. Buildings in locked communes are submerged and darkened into #050508 via zoning & feature state.
+                // In unlocked communes (the holes in the world mask), 3D buildings and streets rise in full glory.
+                // The mask layer is placed at getLayerBeforeLabels (above 3D buildings), ensuring that
+                // all buildings located in locked communes are completely submerged and hidden under the dark mask.
                 let beforeId;
                 if (this.options.pane === 'maskPane') {
-                    beforeId = ml.getLayer('3d-buildings') ? '3d-buildings' : getLayerBeforeLabels(ml);
+                    beforeId = getLayerBeforeLabels(ml);
                 } else {
                     beforeId = ml.getLayer('webgl-traffic-cars') ? 'webgl-traffic-cars' : (ml.getLayer('3d-buildings') ? '3d-buildings' : undefined);
                 }
